@@ -103,7 +103,7 @@ analytics:
 author:
   name             : "한대승"
   avatar           : # path of avatar image, e.g. "/assets/images/bio-photo.jpg"
-  bio              : "I am an amazing person."
+  bio              : "PHP 개발자 하지만 소통이 필요해!"
   location         : "여긴 서울~"
   email            : "hoksi3k@gmail.com"
   links:
