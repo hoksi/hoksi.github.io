@@ -22,6 +22,7 @@
                 const php = new PhpWeb();
 
                 php.addEventListener('ready', async () => {
+                    document.getElementById('output').textContent = ''; // Clear "로딩 중..."
                     php.addEventListener('output', (event) => {
                         document.getElementById('output').textContent += event.detail;
                     });
