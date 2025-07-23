@@ -2,10 +2,10 @@
 
 ## 1. 블로그 기본 정보 분석
 
-- **플랫폼:** Jekyll, GitHub Pages
-- **테마:** Minimal Mistakes
-- **게시물 폴더:** `_posts`
-- **이미지 폴더:** `assets/images`
+- [x] **플랫폼:** Jekyll, GitHub Pages
+- [x] **테마:** Minimal Mistakes
+- [x] **게시물 폴더:** `_posts`
+- [x] **이미지 폴더:** `assets/images`
 
 ### GitHub Pages 정보
 이 블로그는 GitHub Pages를 사용하여 호스팅됩니다. GitHub Pages는 GitHub 리포지토리에서 직접 정적 웹사이트를 만들 수 있게 해주는 서비스입니다.
@@ -23,7 +23,7 @@
 ## 2. 콘텐츠 작성 계획
 
 ### 가. 주제 선정
-블로그의 핵심 주제를 정합니다. (예: 개발, 일상, 학습 기록, 특정 기술 튜토리얼 등)
+- 블로그의 핵심 주제를 정합니다. (예: 개발, 일상, 학습 기록, 특정 기술 튜토리얼 등)
 
 ### 나. 포스트 아이디어 브레인스토밍
 - 작성할 글의 아이디어를 5-10개 정도 미리 구상합니다.
@@ -41,11 +41,11 @@
 ## 3. 글 작성 및 발행 워크플로우
 
 ### 가. 새 게시물 파일 생성
-- `_posts` 폴더에 `YYYY-MM-DD-post-title.md` 형식으로 새 마크다운 파일을 생성합니다.
+- [x] `_posts` 폴더에 `YYYY-MM-DD-post-title.md` 형식으로 새 마크다운 파일을 생성합니다.
 - 예: `2025-07-23-my-first-real-post.md`
 
 ### 나. Front Matter 작성
-- 파일 최상단에 `---`로 둘러싸인 영역에 메타데이터를 작성합니다.
+- [x] 파일 최상단에 `---`로 둘러싸인 영역에 메타데이터를 작성합니다.
 - 기본적으로 `title`과 `date`를 포함합니다.
 ```yaml
 ---
@@ -57,7 +57,7 @@ tags: [블로그, 시작하기]
 ```
 
 ### 다. 본문 작성
-- 마크다운 문법을 사용하여 자유롭게 글의 내용을 작성합니다.
+- [x] 마크다운 문법을 사용하여 자유롭게 글의 내용을 작성합니다.
 
 ### 라. 이미지 추가
 1. `assets/images` 폴더에 이미지를 추가합니다.
@@ -71,7 +71,7 @@ tags: [블로그, 시작하기]
 
 Minimal Mistakes 테마는 카테고리 및 태그별 아카이브 페이지를 지원합니다. 이를 위해 다음 파일들이 필요합니다.
 
-- `_pages/categories/index.md`:
+- [x] `_pages/categories/index.md`:
 ```markdown
 ---
 title: "카테고리"
@@ -81,7 +81,7 @@ author_profile: false
 ---
 ```
 
-- `_pages/tags/index.md`:
+- [x] `_pages/tags/index.md`:
 ```markdown
 ---
 title: "태그"
@@ -91,7 +91,7 @@ author_profile: false
 ---
 ```
 
-`_config.yml` 파일에 다음 설정이 되어 있는지 확인하십시오:
+- [x] `_config.yml` 파일에 다음 설정이 되어 있는지 확인하십시오:
 ```yaml
 category_archive:
   type: liquid
