@@ -2,7 +2,7 @@
 layout: single
 title: "Jekyll 블로그에서 카테고리별 페이지 만들기 (Minimal Mistakes 테마)"
 date: 2025-07-24 00:00:00 +0900
-categories: [jekyll, tutorial]
+categories: [Jekyll, tutorial]
 tags: [jekyll, blog, category, minimal-mistakes]
 ---
 
@@ -68,7 +68,7 @@ category_archive:
 layout: single
 title: "나의 첫 번째 진짜 포스트"
 date: 2025-07-23 10:00:00 +0900
-categories: [jekyll, tutorial] # 여기에 카테고리 추가
+categories: [Jekyll, tutorial] # 여기에 카테고리 추가
 tags: [블로그, 시작하기]
 ---
 ```

@@ -2,7 +2,7 @@
 layout: single
 title: "Minimal Mistakes Jekyll 테마 가이드"
 date: 2025-07-23 10:00:00 +0900
-categories: [jekyll, theme, minimal-mistakes]
+categories: [Jekyll, theme, minimal-mistakes]
 tags: [jekyll, theme, minimal-mistakes, guide]
 ---
 
