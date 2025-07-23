@@ -6,6 +6,8 @@
 - [x] **테마:** Minimal Mistakes
 - [x] **게시물 폴더:** `_posts`
 - [x] **이미지 폴더:** `assets/images`
+- **카테고리:** `_posts` 내 게시물 Front Matter의 `categories` 필드 사용. `_pages/categories/index.md`를 통해 아카이브 페이지 생성.
+- **태그:** `_posts` 내 게시물 Front Matter의 `tags` 필드 사용. `_pages/tags/index.md`를 통해 아카이브 페이지 생성.
 
 ### GitHub Pages 정보
 이 블로그는 GitHub Pages를 사용하여 호스팅됩니다. GitHub Pages는 GitHub 리포지토리에서 직접 정적 웹사이트를 만들 수 있게 해주는 서비스입니다.
