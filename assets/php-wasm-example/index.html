@@ -22,10 +22,16 @@
                 const php = new PhpWeb();
 
                 php.addEventListener('ready', async () => {
-                    const result = await php.run(
+                    php.addEventListener('output', (event) => {
+                        document.getElementById('output').textContent += event.detail;
+                    });
+                    php.addEventListener('error', (event) => {
+                        document.getElementById('output').textContent += `오류: ${event.detail}\n`;
+                    });
+
+                    await php.run(
                         `<?php echo "Hello, World from PHP in WebAssembly!"; ?>`
                     );
-                    document.getElementById('output').textContent = result.output;
                 });
 
             } catch (error) {
