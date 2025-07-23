@@ -20,13 +20,14 @@
         async function runPhp() {
             try {
                 const php = new PhpWeb();
-                await php.init();
 
-                const result = await php.run(
-                    `<?php echo "Hello, World from PHP in WebAssembly!"; ?>`
-                );
+                php.addEventListener('ready', async () => {
+                    const result = await php.run(
+                        `<?php echo "Hello, World from PHP in WebAssembly!"; ?>`
+                    );
+                    document.getElementById('output').textContent = result.output;
+                });
 
-                document.getElementById('output').textContent = result.output;
             } catch (error) {
                 document.getElementById('output').textContent = `오류 발생: ${error.message}`; 
                 console.error("PHP Wasm 실행 중 오류 발생:", error);
