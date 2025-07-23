@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PHP in WebAssembly: Hello World</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f0f0f0; }
+        h1 { color: #333; }
+        pre { background-color: #e0e0e0; padding: 20px; border-radius: 8px; font-size: 1.2em; color: #000; }
+    </style>
+</head>
+<body>
+    <h1>PHP in WebAssembly: Hello World</h1>
+    <pre id="output">로딩 중...</pre>
+
+    <script type="module">
+        import { PHP } from 'https://cdn.jsdelivr.net/npm/php-wasm/php.mjs';
+
+        async function runPhp() {
+            try {
+                const php = new PHP();
+                await php.init();
+
+                const result = await php.run(
+                    `<?php echo "Hello, World from PHP in WebAssembly!"; ?>`
+                );
+
+                document.getElementById('output').textContent = result.output;
+            } catch (error) {
+                document.getElementById('output').textContent = `오류 발생: ${error.message}`; 
+                console.error("PHP Wasm 실행 중 오류 발생:", error);
+            }
+        }
+
+        runPhp();
+    </script>
+</body>
+</html>

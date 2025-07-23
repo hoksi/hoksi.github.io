@@ -29,49 +29,11 @@ PHP 코드를 직접 WebAssembly로 컴파일하는 것이 아니라, **PHP 인�
 
 ### WebAssembly PHP로 "Hello World" 출력하기
 
-아래는 WebAssembly로 컴파일된 PHP를 사용하여 웹 브라우저에서 "Hello World"를 출력하는 간단한 예제 코드입니다. 이 코드를 실행하려면 `php.wasm` 및 `php.js` 파일이 필요하며, 이는 [php-wasm 프로젝트](https://github.com/php-wasm/php-wasm) 등에서 얻을 수 있습니다. 예제에서는 CDN 경로를 사용합니다.
+아래 `<iframe>`을 통해 WebAssembly로 컴파일된 PHP가 "Hello World"를 출력하는 예제를 직접 확인해 보세요.
 
-`index.html` 파일로 저장하여 웹 서버를 통해 실행해 보세요.
+<iframe src="/assets/php-wasm-example/index.html" width="100%" height="200px" frameborder="0" scrolling="no"></iframe>
 
-```html
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PHP in WebAssembly: Hello World</title>
-</head>
-<body>
-    <h1>PHP in WebAssembly: Hello World</h1>
-    <pre id="output"></pre>
-
-    <script type="module">
-        import { PHP } from 'https://cdn.jsdelivr.net/npm/php-wasm/php.mjs';
-
-        async function runPhp() {
-            const php = new PHP();
-            await php.init();
-
-            const result = await php.run(
-                `<?php echo "Hello, World from PHP in WebAssembly!"; ?>`
-            );
-
-            document.getElementById('output').textContent = result.output;
-        }
-
-        runPhp();
-    </script>
-</body>
-</html>
-```
-
-**실행 방법:**
-
-1.  위 코드를 `index.html` 파일로 저장합니다.
-2.  `index.html` 파일이 있는 디렉토리에서 로컬 웹 서버를 실행합니다. (예: Python이 설치되어 있다면 터미널에서 `python -m http.server` 명령 실행)
-3.  웹 브라우저를 열고 `http://localhost:8000` (또는 웹 서버가 사용하는 포트)으로 접속합니다.
-
-브라우저 화면에 "Hello, World from PHP in WebAssembly!" 메시지가 출력되는 것을 확인할 수 있습니다.
+이 예제는 `assets/php-wasm-example/index.html` 파일에 작성되어 있으며, 웹 브라우저에서 PHP 코드가 실행되는 것을 보여줍니다.
 
 ### 결론
 
