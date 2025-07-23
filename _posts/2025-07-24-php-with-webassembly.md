@@ -1,7 +1,7 @@
 ---
 layout: single
 title: "PHP, 이제 웹 브라우저에서 직접 실행된다: WebAssembly의 마법"
-date: 2025-07-24 00:00:00 +0900
+date: 2025-07-24 06:32:23 +0900
 categories: [개발, 웹]
 tags: [PHP, WebAssembly, Wasm, 프론트엔드, 백엔드, 웹개발]
 ---

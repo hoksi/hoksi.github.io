@@ -1,7 +1,7 @@
 ---
 layout: single
 title: "Jekyll 블로그에서 카테고리별 페이지 만들기 (Minimal Mistakes 테마)"
-date: 2025-07-24 00:00:00 +0900
+date: 2025-07-24 05:30:47 +0900
 categories: [Jekyll, tutorial]
 tags: [jekyll, blog, category, minimal-mistakes]
 ---

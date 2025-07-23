@@ -1,7 +1,7 @@
 ---
 layout: single
 title: "웹 브라우저에서 MAME 에뮬레이터 구동하기"
-date: 2025-07-24 00:00:00 +0900
+date: 2025-07-24 05:54:42 +0900
 categories: [개발, 에뮬레이터]
 tags: [MAME, 웹, 에뮬레이터, WebAssembly, JavaScript]
 ---

@@ -1,6 +1,6 @@
 ---
 title:  "Mac에서 Jekyll 설치를 위한 Ruby 버전 업그레이드"
-date:   2025-07-23 11:10:00 +0900
+date: 2025-07-23 22:46:44 +0900
 categories: [Jekyll, 개발]
 ---
 
