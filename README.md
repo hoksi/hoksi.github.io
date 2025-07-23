@@ -3,6 +3,7 @@
 ## 1. 블로그 기본 정보 분석
 
 - **플랫폼:** Jekyll, GitHub Pages
+- **테마:** Minimal Mistakes
 - **게시물 폴더:** `_posts`
 - **이미지 폴더:** `assets/images`
 
@@ -50,7 +51,8 @@
 ---
 title:  "나의 첫 번째 진짜 포스트"
 date:   2025-07-23 10:00:00 +0900
-categories: jekyll update
+categories: [Jekyll, tutorial]
+tags: [블로그, 시작하기]
 ---
 ```
 
@@ -65,7 +67,41 @@ categories: jekyll update
 - `git push`를 하기 전에 로컬에서 블로그가 어떻게 보이는지 확인할 수 있습니다.
 - 터미널에서 `bundle exec jekyll serve` 명령어를 실행하고 웹 브라우저에서 `http://localhost:4000`에 접속하여 확인합니다.
 
-## 4. 배포
+## 4. 카테고리 및 태그 페이지 설정
+
+Minimal Mistakes 테마는 카테고리 및 태그별 아카이브 페이지를 지원합니다. 이를 위해 다음 파일들이 필요합니다.
+
+- `_pages/categories/index.md`:
+```markdown
+---
+title: "카테고리"
+layout: categories
+permalink: /categories/
+author_profile: false
+---
+```
+
+- `_pages/tags/index.md`:
+```markdown
+---
+title: "태그"
+layout: tags
+permalink: /tags/
+author_profile: false
+---
+```
+
+`_config.yml` 파일에 다음 설정이 되어 있는지 확인하십시오:
+```yaml
+category_archive:
+  type: liquid
+  path: /categories/
+tag_archive:
+  type: liquid
+  path: /tags/
+```
+
+## 5. 배포
 
 1.  **변경사항 추가:** `git add .`
 2.  **커밋:** `git commit -m "New post: [포스트 제목]"`
