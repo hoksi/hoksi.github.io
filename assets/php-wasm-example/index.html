@@ -15,11 +15,11 @@
     <pre id="output">로딩 중...</pre>
 
     <script type="module">
-        import { PHP } from './PhpWeb.mjs';
+        import { PhpWeb } from './PhpWeb.mjs';
 
         async function runPhp() {
             try {
-                const php = new PHP();
+                const php = new PhpWeb();
                 await php.init();
 
                 const result = await php.run(
