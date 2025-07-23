@@ -1,5 +1,4 @@
 ---
-layout: post
 title:  "Jekyll 블로그에 카테고리 추가하기"
 date:   2025-07-23 11:00:00 +0900
 categories: [개발, Jekyll]
