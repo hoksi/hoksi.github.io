@@ -15,43 +15,56 @@
     <pre id="output">PHP Wasm을 로드 중...</pre>
 
     <script type="module">
-        import { PhpWeb } from '/assets/wasmPhp/PhpWeb.mjs';
+        import { PhpWeb } from 'https://www.unpkg.com/php-wasm/php-wasm/PhpWeb.mjs';
 
         async function runPhp() {
             const outputElement = document.getElementById('output');
+            console.log('runPhp() 함수 시작.');
             outputElement.textContent = 'PHP Wasm 인스턴스 생성 중...';
 
             try {
+                console.log('PhpWeb 인스턴스 생성 시도...');
                 const php = new PhpWeb({
                     files: {
                         '/var/www/html/my_functions.php': `<?php function sayHello() { echo "Hello from included file!"; } ?>`
                     }
                 });
+                console.log('PhpWeb 인스턴스 생성 완료.');
+
+                let readyTimeout = setTimeout(() => {
+                    console.error('PhpWeb ready 이벤트 타임아웃!');
+                    outputElement.textContent = '오류: PHP Wasm 로드에 실패했거나 시간이 초과되었습니다.';
+                }, 10000); // 10초 타임아웃
 
                 php.addEventListener('ready', async () => {
+                    clearTimeout(readyTimeout);
+                    console.log('PhpWeb ready 이벤트 발생!');
                     outputElement.textContent = '';
 
                     // PHP 코드에서 가상 파일 시스템의 경로를 참조하여 include
+                    console.log('PHP 코드 실행 시도...');
                     await php.run(
                         `<?php
                         include '/var/www/html/my_functions.php';
                         sayHello();
                         ?>`
                     );
+                    console.log('PHP 코드 실행 완료.');
                 });
 
                 php.addEventListener('output', (event) => {
+                    console.log('PHP Wasm output 이벤트:', event.detail);
                     outputElement.textContent += event.detail;
                 });
 
                 php.addEventListener('error', (event) => {
+                    console.error('PHP Wasm error 이벤트:', event.detail);
                     outputElement.textContent += `\n오류: ${event.detail}`;
-                    console.error('PHP Wasm 오류:', event.detail);
                 });
 
             } catch (error) {
+                console.error("PHP Wasm 실행 중 치명적인 오류 발생:", error);
                 outputElement.textContent = `오류 발생: ${error.message}`;
-                console.error("PHP Wasm 실행 중 오류 발생:", error);
             }
         }
 
