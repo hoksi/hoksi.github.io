@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PHP Wasm Include Example</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        pre { background-color: #f0f0f0; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>PHP Wasm Include Example</h1>
+    <p>아래는 WebAssembly PHP에서 <code>include</code> 명령을 사용하여 외부 파일을 포함하고 실행한 결과입니다.</p>
+    <pre id="output">PHP Wasm을 로드 중...</pre>
+
+    <script type="module">
+        import { PhpWeb } from '../../wasmPhp/PhpWeb.mjs';
+
+        async function runPhp() {
+            const outputElement = document.getElementById('output');
+            outputElement.textContent = 'PHP Wasm 인스턴스 생성 중...';
+
+            try {
+                const php = new PhpWeb({
+                    files: {
+                        '/var/www/html/my_functions.php': `<?php function sayHello() { echo "Hello from included file!"; } ?>`
+                    }
+                });
+
+                php.addEventListener('ready', async () => {
+                    outputElement.textContent = '';
+
+                    // PHP 코드에서 가상 파일 시스템의 경로를 참조하여 include
+                    await php.run(
+                        `<?php
+                        include '/var/www/html/my_functions.php';
+                        sayHello();
+                        ?>`
+                    );
+                });
+
+                php.addEventListener('output', (event) => {
+                    outputElement.textContent += event.detail;
+                });
+
+                php.addEventListener('error', (event) => {
+                    outputElement.textContent += `\n오류: ${event.detail}`;
+                    console.error('PHP Wasm 오류:', event.detail);
+                });
+
+            } catch (error) {
+                outputElement.textContent = `오류 발생: ${error.message}`;
+                console.error("PHP Wasm 실행 중 오류 발생:", error);
+            }
+        }
+
+        runPhp();
+    </script>
+</body>
+</html>

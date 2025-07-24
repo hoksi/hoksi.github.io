@@ -22,47 +22,21 @@ PHP 개발자라면 `include`나 `require`와 같은 명령어가 익숙하실 �
 
 ### `include`할 파일을 가상 파일 시스템에 추가하는 방법
 
-`include`할 PHP 파일이나 기타 리소스 파일들을 가상 파일 시스템에 추가하는 가장 일반적인 방법은 다음과 같습니다:
-
 1.  **파일 사전 로딩 (Preloading Files):**
     WebAssembly 모듈이 로드되고 PHP 인터프리터가 초기화될 때, `include`할 모든 파일들을 미리 가상 파일 시스템에 로드해두는 방식입니다. `php-wasm` 라이브러리는 보통 인스턴스 생성 시 `files` 옵션 등을 통해 이 기능을 제공합니다.
 
     **예시:**
     `my_functions.php`라는 파일을 `include`하고 싶다면, JavaScript 코드에서 `php-wasm` 인스턴스를 초기화할 때 다음과 같이 파일을 가상 파일 시스템에 추가할 수 있습니다.
 
-    ```javascript
-    // JavaScript 코드 (예: assets/php-wasm-example/index.html)
-    import { PhpWeb } from '../wasmPhp/PhpWeb.mjs';
+<div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
+  <iframe src="/assets/php-wasm-include-command/index.html" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
+</div>
 
-    async function runPhp() {
-        try {
-            // files 옵션을 통해 가상 파일 시스템에 파일 추가
-            const php = new PhpWeb({
-                files: {
-                    '/var/www/html/my_functions.php': `<?php function sayHello() { echo "Hello from included file!"; } ?>`
-                }
-            });
+위 예시의 실행 결과는 다음과 같습니다:
 
-            php.addEventListener('ready', async () => {
-                document.getElementById('output').textContent = '';
-
-                // PHP 코드에서 가상 파일 시스템의 경로를 참조하여 include
-                await php.run(
-                    `<?php
-                    include '/var/www/html/my_functions.php';
-                    sayHello();
-                    ?>`
-                );
-            });
-
-        } catch (error) {
-            document.getElementById('output').textContent = `오류 발생: ${error.message}`; 
-            console.error("PHP Wasm 실행 중 오류 발생:", error);
-        }
-    }
-
-    runPhp();
-    ```
+<div style="border: 1px solid #ccc; padding: 10px; margin-top: 10px;">
+  <iframe src="/assets/php-wasm-include-command/index.html" width="100%" height="150px" frameborder="0"></iframe>
+</div>
 
     위 예시에서는 `my_functions.php`의 내용을 직접 문자열로 전달했지만, 실제로는 `fetch` API 등을 사용하여 웹 서버에 호스팅된 파일을 비동기적으로 불러와 가상 파일 시스템에 추가할 수도 있습니다.
 
