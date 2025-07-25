@@ -75,7 +75,7 @@ tags: [블로그, 시작하기]
 
 Minimal Mistakes 테마는 카테고리 및 태그별 아카이브 페이지를 지원합니다. 이를 위해 다음 파일들이 필요합니다.
 
-- [x] `_pages/categories/index.md`:
+- [ ] `_pages/categories/index.md`:
 ```markdown
 ---
 title: "카테고리"
@@ -85,7 +85,7 @@ author_profile: false
 ---
 ```
 
-- [x] `_pages/tags/index.md`:
+- [ ] `_pages/tags/index.md`:
 ```markdown
 ---
 title: "태그"
@@ -95,7 +95,7 @@ author_profile: false
 ---
 ```
 
-- [x] `_config.yml` 파일에 다음 설정이 되어 있는지 확인하십시오:
+- [ ] `_config.yml` 파일에 다음 설정이 되어 있는지 확인하십시오:
 ```yaml
 category_archive:
   type: liquid
