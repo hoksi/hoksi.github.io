@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "overview.md",
-                "mode": "source",
-                "source": false
+                "file": "_posts/2025-07-25-termux-gemini-cli.md",
+                "mode": "preview",
+                "source": true
               },
               "icon": "lucide-file",
-              "title": "overview"
+              "title": "2025-07-25-termux-gemini-cli"
             }
           }
         ]
@@ -155,9 +155,10 @@
   },
   "active": "63ffb0cf407493b0",
   "lastOpenFiles": [
-    "r.md",
     "_posts/2025-07-25-github-cli-overview.md",
+    "_posts/2025-07-25-termux-gemini-cli.md",
     "overview.md",
+    "r.md",
     "gh.md",
     "README.md"
   ]

@@ -1,6 +1,6 @@
 ---
 title: "GitHub CLI (gh) 개요"
-date: 2025-07-25 09:00:00 +0900
+date: 2025-07-25 09:54:00 +0900
 categories: [GitHub, CLI]
 tags: [gh, GitHub CLI, 터미널, 개발도구]
 layout: single
