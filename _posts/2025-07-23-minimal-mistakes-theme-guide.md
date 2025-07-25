@@ -8,7 +8,7 @@ tags: [jekyll, theme, minimal-mistakes, guide]
 
 # Minimal Mistakes Jekyll 테마
 
-이 블로그는 현재 **Minimal Mistakes** Jekyll 테마를 사용하고 있습니다. Minimal Mistakes는 Jekyll을 위한 강력하고 유연하며 반응형 테마로, 개인 블로그, 포트폴리오, 문서 사이트 등 다양한 용도로 활용될 수 있습니다.
+Jekyll 블로그를 위한 강력하고 유연한 테마를 찾고 계신가요? 이 블로그에서 사용 중인 **Minimal Mistakes** Jekyll 테마는 개인 블로그, 포트폴리오, 문서 사이트 등 다양한 용도로 활용될 수 있는 반응형 테마입니다.
 
 ## 주요 특징:
 

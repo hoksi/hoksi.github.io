@@ -8,7 +8,7 @@ tags: [MAME, 웹, 에뮬레이터, WebAssembly, JavaScript]
 
 ## 웹 브라우저에서 MAME 에뮬레이터 구동하기
 
-MAME(Multiple Arcade Machine Emulator)은 수많은 아케이드 게임을 에뮬레이션하는 강력한 도구입니다. 그렇다면 이 MAME 에뮬레이터를 웹 브라우저에서 직접 구동하는 것이 가능할까요? 결론부터 말하자면 **기술적으로 가능합니다.**
+추억의 아케이드 게임을 웹 브라우저에서 바로 즐길 수 있다면 어떨까요? MAME(Multiple Arcade Machine Emulator)은 수많은 아케이드 게임을 에뮬레이션하는 강력한 도구이며, 이제 웹 브라우저에서도 직접 구동하는 것이 기술적으로 가능해졌습니다.
 
 이는 주로 **WebAssembly (Wasm)**와 **JavaScript** 기술을 사용하여 구현됩니다.
 

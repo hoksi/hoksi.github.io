@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "_posts/2025-07-25-termux-gemini-cli.md",
+                "file": "news.md",
                 "mode": "preview",
                 "source": true
               },
               "icon": "lucide-file",
-              "title": "2025-07-25-termux-gemini-cli"
+              "title": "news"
             }
           }
         ]
@@ -98,7 +98,7 @@
         "state": {
           "type": "backlink",
           "state": {
-            "file": "overview.md",
+            "file": "_posts/2025-07-25-termux-tasker-automation.md",
             "collapseAll": false,
             "extraContext": false,
             "sortOrder": "alphabetical",
@@ -155,8 +155,14 @@
   },
   "active": "63ffb0cf407493b0",
   "lastOpenFiles": [
-    "_posts/2025-07-25-github-cli-overview.md",
+    "_posts/2025-07-25-termux-tasker-automation.md",
+    "_posts/2025-07-25-ai-img.md",
+    "_posts/2025-07-25-python-trending-news-script.md",
+    "_posts/2018-11-08-first-post.md",
+    "news.md",
+    "_posts/2025-07-25-termux-plugins-guide.md",
     "_posts/2025-07-25-termux-gemini-cli.md",
+    "_posts/2025-07-25-github-cli-overview.md",
     "overview.md",
     "r.md",
     "gh.md",

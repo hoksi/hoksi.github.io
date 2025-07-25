@@ -5,7 +5,7 @@ categories: [게임, 개발, 엔진]
 tags: [ArtemisEngine, ADV, GameEngine, Multiplatform, Live2D]
 ---
 
-`https://www.ies-net.com/`는 iOS, Android, Windows를 지원하는 멀티플랫폼 ADV(어드벤처) 게임 엔진인 **Artemis Engine**의 공식 웹사이트입니다. 이 엔진은 다양한 플랫폼에서 어드벤처 게임을 개발하고자 하는 개발자들에게 강력한 솔루션을 제공합니다.
+iOS, Android, Windows를 아우르는 멀티플랫폼 ADV(어드벤처) 게임 엔진을 찾고 계신가요? **Artemis Engine**은 다양한 플랫폼에서 어드벤처 게임을 개발하고자 하는 개발자들에게 강력한 솔루션을 제공합니다.
 
 ## Artemis Engine이란?
 

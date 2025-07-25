@@ -5,7 +5,7 @@ categories: [게임, 개발, Flutter]
 tags: [Flutter, Flame, GameEngine, 2DGame, CrossPlatform]
 ---
 
-모바일, 웹, 데스크톱 등 다양한 플랫폼에서 2D 게임을 개발하고 싶다면 **Flutter 게임 엔진 Flame**이 훌륭한 선택지가 될 수 있습니다. Flame은 Google의 UI 툴킷인 Flutter를 기반으로 하여, Flutter의 강력한 크로스 플랫폼 기능을 게임 개발에 그대로 활용할 수 있도록 돕습니다.
+모바일, 웹, 데스크톱 등 다양한 플랫폼에서 2D 게임을 개발하고 싶으신가요? 그렇다면 **Flutter 게임 엔진 Flame**이 훌륭한 선택지가 될 수 있습니다. Flame은 Google의 UI 툴킷인 Flutter를 기반으로 하여, Flutter의 강력한 크로스 플랫폼 기능을 게임 개발에 그대로 활용할 수 있도록 돕습니다.
 
 ## Flame 엔진이란?
 
