@@ -12,7 +12,6 @@ tags:
   - GA4
 ---
 
-# GitHub Pages (Jekyll) 테마 수정 및 Google Analytics 연동 가이드
 
 Jekyll을 사용하여 GitHub Pages를 운영하면서 Google Analytics 연동을 위해 `_config.yml` 파일에 코드를 추가했지만, 실제 연동이 되지 않는 문제가 있었습니다. 이는 GA4 코드를 발급받았음에도 불구하고 Jekyll에서 지원하는 스크립트가 이를 제대로 지원하지 않았기 때문입니다. 이 가이드는 Minimal Mistakes 테마를 기준으로 Jekyll 테마 수정 및 GA4 연동 방법을 다룹니다.
 
