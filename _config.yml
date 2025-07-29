@@ -92,11 +92,11 @@ naver_site_verification  :
 #   links: # An array of links to social media profiles
 
 # Analytics
-analytics:
-  provider               : "google"
-  google:
-    tracking_id          : "G-0Y3BPPS9KD"
-    anonymize_ip         : true
+#analytics:
+#  provider               : "google"
+#  google:
+#    tracking_id          : "G-0Y3BPPS9KD"
+#    anonymize_ip         : true
 
 
 # Site Author
