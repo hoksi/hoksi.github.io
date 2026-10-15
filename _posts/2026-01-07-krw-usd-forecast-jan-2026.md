@@ -7,7 +7,7 @@ categories:
 tags:
   - USD/KRW
   - Forecast
-  - 2026
+  - "2026"
   - Finance
 ---
 
