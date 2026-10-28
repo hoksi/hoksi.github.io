@@ -30,7 +30,7 @@ tags:
 
 ## 용산의 아픔
 
-![용산역 광장의 강제징용 노동자상](/assets/images/posts/2026-10-28-yongsan/statue.jpg){: .align-center style="max-width: 420px"}
+![용산역 광장의 강제징용 노동자상](/assets/images/posts/2026-10-28-yongsan/statue.jpg){: .align-center style="width: 100%; max-width: 420px"}
 
 역 광장 한쪽에는 강제징용 노동자상이 서 있습니다. 일제강점기에 용산역은 전국에서 동원된 젊은이들이 일본 본토, 군함도(하시마섬), 사할린, 남태평양의 탄광·제철소·군사 시설로 끌려가기 전에 모이던 곳이었다고 합니다. 그래서 이 자리에 동상이 세워졌습니다.
 
@@ -55,7 +55,7 @@ tags:
 
 대합실은 저녁 시간이라 사람이 많았습니다. 걸으면서 찍었더니 살짝 흔들렸네요.
 
-![승강장으로 내려가는 계단](/assets/images/posts/2026-10-28-yongsan/stairs.jpg){: .align-center style="max-width: 420px"}
+![승강장으로 내려가는 계단](/assets/images/posts/2026-10-28-yongsan/stairs.jpg){: .align-center style="width: 100%; max-width: 420px"}
 
 마지막은 승강장으로 내려가는 계단입니다. 여기서부터는 집에 가는 일만 남았습니다.
 
