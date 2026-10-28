@@ -20,11 +20,9 @@ tags:
 
 ## 빌딩 숲 야경
 
-<figure class="half">
-  <img src="/assets/images/posts/2026-10-28-yongsan/night1.jpg" alt="용산 고층 빌딩 야경 1">
-  <img src="/assets/images/posts/2026-10-28-yongsan/night2.jpg" alt="용산 고층 빌딩 야경 2">
-  <figcaption>용산 야경 1, 2</figcaption>
-</figure>
+![용산 고층 빌딩 야경 1](/assets/images/posts/2026-10-28-yongsan/night1.jpg){: .align-center style="width: 100%; max-width: 420px"}
+
+![용산 고층 빌딩 야경 2](/assets/images/posts/2026-10-28-yongsan/night2.jpg)
 
 역 주변은 어느새 고층 빌딩 숲이 됐습니다. 꼭대기 조명이 파랗게, 빨갛게 빛나고 창문마다 불이 켜져 있습니다. 다들 아직 일하는 걸까요.
 
