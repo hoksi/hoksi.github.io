@@ -28,7 +28,7 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--board
 .tile.new{animation:pop 160ms ease-out}.tile.merged{animation:bump 160ms ease-out}
 @keyframes pop{from{transform:var(--t) scale(.2)}to{transform:var(--t) scale(1)}}
 @keyframes bump{50%{transform:var(--t) scale(1.12)}}
-#overlay{position:absolute;inset:0;border-radius:12px;background:rgba(246,244,239,.82);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px}
+#overlay{position:absolute;inset:0;z-index:10;border-radius:12px;background:rgba(246,244,239,.82);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px}
 @media (prefers-color-scheme:dark){#overlay{background:rgba(23,22,26,.85)}}
 #overlay.show{display:flex}#overlay h2{margin:0;font-size:26px}#overlay p{margin:0;color:var(--mut)}
 .legend{margin-top:16px;background:var(--card);border-radius:12px;padding:12px;font-size:13px;color:var(--mut)}
