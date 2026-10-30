@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>2048 · 그래! 만들어보자</title>
+<meta name="description" content="아이디어 두 개를 합치면 메모, 메모 두 개를 합치면 설계... 🎉 만들었다!까지 가 보세요.">
+<style>
+:root{--bg:#f6f4ef;--fg:#2d2a26;--mut:#7a746b;--board:#cfc6b8;--cell:#e4ddd1;--btn:#2f6fed;--btnfg:#fff;--card:#fffdf9}
+@media (prefers-color-scheme:dark){:root{--bg:#17161a;--fg:#ece7df;--mut:#a39d93;--board:#3a3631;--cell:#4a453f;--btn:#5b8cff;--btnfg:#0d0d10;--card:#221f24}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Noto Sans KR","Apple SD Gothic Neo",sans-serif}
+main{max-width:480px;margin:0 auto;padding:16px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-bottom:10px}
+h1{font-size:22px;margin:0;line-height:1.2}h1 small{display:block;font-size:13px;color:var(--mut);font-weight:400;margin-top:2px}
+.scores{display:flex;gap:6px}.sc{background:var(--board);border-radius:8px;padding:4px 10px;text-align:center;min-width:64px}
+.sc b{display:block;font-size:18px}.sc span{font-size:11px;color:var(--mut)}
+.bar{display:flex;gap:8px;align-items:center;margin:8px 0 12px}
+button{font:inherit;border:0;border-radius:999px;padding:8px 14px;background:var(--btn);color:var(--btnfg);font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--board)}
+.hint{font-size:13px;color:var(--mut);flex:1}
+#board{position:relative;width:100%;aspect-ratio:1;background:var(--board);border-radius:12px;padding:2.5%;touch-action:none;user-select:none}
+.cell,.tile{position:absolute;width:21.25%;height:21.25%;border-radius:8px}
+.cell{background:var(--cell)}
+.tile{display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform 110ms ease-in-out;
+  font-weight:700;color:#3b3229;line-height:1.1;text-align:center;will-change:transform}
+.tile .e{font-size:clamp(20px,8vw,34px)}.tile .l{font-size:clamp(9px,2.7vw,13px);margin-top:2px;white-space:nowrap}
+.tile.new{animation:pop 160ms ease-out}.tile.merged{animation:bump 160ms ease-out}
+@keyframes pop{from{transform:var(--t) scale(.2)}to{transform:var(--t) scale(1)}}
+@keyframes bump{50%{transform:var(--t) scale(1.12)}}
+#overlay{position:absolute;inset:0;border-radius:12px;background:rgba(246,244,239,.82);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px}
+@media (prefers-color-scheme:dark){#overlay{background:rgba(23,22,26,.85)}}
+#overlay.show{display:flex}#overlay h2{margin:0;font-size:26px}#overlay p{margin:0;color:var(--mut)}
+.legend{margin-top:16px;background:var(--card);border-radius:12px;padding:12px;font-size:13px;color:var(--mut)}
+.legend ol{margin:6px 0 0;padding-left:20px;columns:2;column-gap:16px}
+footer{margin-top:14px;font-size:12px;color:var(--mut);text-align:center}footer a{color:var(--btn)}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>그래! 만들어보자<small>2048 · 합쳐서 끝까지 만들어 보세요</small></h1>
+    <div class="scores"><div class="sc"><span>점수</span><b id="score">0</b></div><div class="sc"><span>최고</span><b id="best">0</b></div></div>
+  </header>
+  <div class="bar"><span class="hint">밀어서(또는 방향키) 같은 단계끼리 합치기</span><button class="ghost" id="undo">되돌리기</button><button id="new">새 게임</button></div>
+  <div class="bar" style="margin-top:-4px"><button class="ghost" id="sfx">🔊 효과음</button><button class="ghost" id="bgmbtn">🎵 배경음 끔</button></div>
+  <audio id="bgm" src="bgm.ogg" loop preload="none"></audio>
+  <div id="board"><div id="overlay"><h2 id="otitle"></h2><p id="otext"></p><div class="bar" style="justify-content:center"><button id="ocont" class="ghost">계속 만들기</button><button id="oagain">다시 하기</button></div></div></div>
+  <div class="legend">아이디어 두 개를 합치면 메모, 메모 두 개를 합치면 설계… 이렇게 끝까지 가면 🎉 만들었다!
+    <ol id="legend"></ol></div>
+  <footer><a href="/">그래 만들어보자! 블로그</a>로 돌아가기<br>배경음: Meta MusicGen(small)으로 만든 곡 · 비상업적 이용</footer>
+</main>
+<script>
+"use strict";
+// 2048 for hoksi.github.io (2026-10-30). Plain JS, no libraries, runs entirely in the visitor's browser.
+// Tiles are the stages of making something; the value doubles each step like the original game.
+const STAGES = [[2, "💡", "아이디어", "#fff4c2"], [4, "📝", "메모", "#ffe7a8"], [8, "✏️", "설계", "#ffd59a"], [16, "⌨️", "코딩", "#ffc08a"],
+  [32, "🐛", "버그", "#ffab84"], [64, "🔧", "수정", "#ff9a7a"], [128, "🧪", "테스트", "#c8e6a0"], [256, "📦", "빌드", "#a7dba0"],
+  [512, "🚀", "배포", "#8fd3c9"], [1024, "📣", "공개", "#8fc0f0"], [2048, "🎉", "만들었다!", "#c3a6ff"], [4096, "🏆", "또 만들자", "#ffd166"]];
+const stage = v => STAGES.find(s => s[0] === v) || [v, "⭐", String(v), "#e0e0e0"];
+const $ = id => document.getElementById(id);
+const N = 4;
+const store = {get(k, d) { try { const v = localStorage.getItem("mk2048_" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+               set(k, v) { try { localStorage.setItem("mk2048_" + k, JSON.stringify(v)); } catch (e) {} }};
+// ?seed=N makes the random spawns repeatable (used by tests); normal play uses Math.random
+const seedParam = new URLSearchParams(location.search).get("seed");
+let seed = seedParam ? Number(seedParam) >>> 0 : 0;
+const rand = () => seedParam ? ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296) : Math.random();
+
+let grid, score, best = store.get("best", 0), won, keepGoing, nextId = 1, history = [];
+const tiles = new Map();   // id -> element
+
+function empty() { return Array.from({length: N}, () => Array(N).fill(null)); }
+function spawn() {
+  const free = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (!grid[r][c]) free.push([r, c]);
+  if (!free.length) return;
+  const [r, c] = free[Math.floor(rand() * free.length)];
+  grid[r][c] = {id: nextId++, v: rand() < 0.9 ? 2 : 4, isNew: true};
+}
+function newGame() {
+  grid = empty(); score = 0; won = false; keepGoing = false; history = [];
+  spawn(); spawn(); render(); save();
+}
+function snapshot() { return {grid: grid.map(row => row.map(t => t && {id: t.id, v: t.v})), score, won, keepGoing}; }
+function save() { store.set("game", snapshot()); store.set("next", nextId); }
+
+// one line toward index 0: slide, merge equal neighbours once, report the score gained
+function slide(line) {
+  const xs = line.filter(Boolean), out = []; let gain = 0;
+  for (let i = 0; i < xs.length; i++) {
+    if (i + 1 < xs.length && xs[i].v === xs[i + 1].v) {
+      const v = xs[i].v * 2; gain += v;
+      out.push({id: nextId++, v, merged: true, from: [xs[i].id, xs[i + 1].id]}); i++;
+    } else out.push({id: xs[i].id, v: xs[i].v});
+  }
+  while (out.length < N) out.push(null);
+  return [out, gain];
+}
+function lines(dir) {     // coordinates of each line, ordered toward the move direction
+  const L = [];
+  for (let k = 0; k < N; k++) {
+    const line = [];
+    for (let j = 0; j < N; j++) {
+      if (dir === "left") line.push([k, j]); else if (dir === "right") line.push([k, N - 1 - j]);
+      else if (dir === "up") line.push([j, k]); else line.push([N - 1 - j, k]);
+    }
+    L.push(line);
+  }
+  return L;
+}
+function move(dir) {
+  if ($("overlay").classList.contains("show")) return false;
+  const before = snapshot(); let moved = false, gain = 0; const merges = [];
+  const next = empty();
+  for (const line of lines(dir)) {
+    const [out, g] = slide(line.map(([r, c]) => grid[r][c]));
+    gain += g;
+    out.forEach((t, j) => { const [r, c] = line[j]; next[r][c] = t; if (t && t.merged) merges.push({t, r, c}); });
+    line.forEach(([r, c], j) => { const a = grid[r][c], b = out[j]; if ((a && a.id) !== (b && b.id)) moved = true; });
+  }
+  if (!moved) return false;
+  history.push(before); if (history.length > 20) history.shift();
+  // slide the merged pair to the target before swapping in the merged tile
+  for (const {t, r, c} of merges) for (const id of t.from) { const el = tiles.get(id); if (el) place(el, r, c); }
+  grid = next; score += gain;
+  if (score > best) { best = score; store.set("best", best); }
+  spawn(); render(); save();
+  if (merges.length) sfx("merge", Math.max(...merges.map(m => m.t.v))); else sfx("slide");
+  if (!won && grid.flat().some(t => t && t.v >= 2048)) { won = true; if (!keepGoing) { show("🎉 만들었다!", "끝까지 만들었어요. 계속 만들어 볼까요?", true); sfx("win"); } }
+  else if (!canMove()) { show("더 이상 합칠 게 없어요", `점수 ${score.toLocaleString()} · 다시 만들어 볼까요?`, false); sfx("over"); }
+  return true;
+}
+function canMove() {
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const t = grid[r][c]; if (!t) return true;
+    if (c + 1 < N && grid[r][c + 1] && grid[r][c + 1].v === t.v) return true;
+    if (r + 1 < N && grid[r + 1][c] && grid[r + 1][c].v === t.v) return true;
+  }
+  return false;
+}
+function place(el, r, c) {
+  const t = `translate(${c * 117.65}%, ${r * 117.65}%)`;          // 21.25% tile + 3.75% gap = 117.65% of a tile
+  el.style.setProperty("--t", t); el.style.transform = t;
+}
+function render() {
+  const board = $("board"), seen = new Set();
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const t = grid[r][c]; if (!t) continue; seen.add(t.id);
+    let el = tiles.get(t.id);
+    if (!el) {
+      el = document.createElement("div"); el.className = "tile";
+      const [, e, label, color] = stage(t.v);
+      const em = document.createElement("span"); em.className = "e"; em.textContent = e;
+      const lb = document.createElement("span"); lb.className = "l"; lb.textContent = label;
+      el.append(em, lb); el.style.background = color; el.dataset.v = t.v;
+      el.style.left = "2.5%"; el.style.top = "2.5%";
+      if (t.isNew) el.classList.add("new"); if (t.merged) el.classList.add("merged");
+      board.appendChild(el); tiles.set(t.id, el);
+    }
+    place(el, r, c); delete t.isNew; delete t.merged; delete t.from;
+  }
+  for (const [id, el] of tiles) if (!seen.has(id)) { tiles.delete(id); setTimeout(() => el.remove(), 110); }
+  $("score").textContent = score.toLocaleString(); $("best").textContent = best.toLocaleString();
+  $("undo").disabled = !history.length; $("undo").style.opacity = history.length ? 1 : .4;
+}
+function show(title, text, canContinue) {
+  $("otitle").textContent = title; $("otext").textContent = text;
+  $("ocont").style.display = canContinue ? "" : "none"; $("overlay").classList.add("show");
+}
+function hide() { $("overlay").classList.remove("show"); }
+function restore(s) {
+  for (const el of tiles.values()) el.remove(); tiles.clear();
+  grid = s.grid.map(row => row.map(t => t && {id: t.id, v: t.v})); score = s.score; won = s.won; keepGoing = s.keepGoing;
+  render(); save();
+}
+
+// ---- sound: effects are synthesized with Web Audio (no files); the background loop (bgm.ogg, made with MusicGen on
+// the author's home server) is off until the player turns it on. Browsers only allow sound after a tap/key, which is
+// exactly when these play.
+let actx = null, sfxOn = store.get("sfx", true), bgmOn = false;
+function ac() { if (!actx) { const A = window.AudioContext || window.webkitAudioContext; if (A) actx = new A(); } if (actx && actx.state === "suspended") actx.resume(); return actx; }
+function tone(freq, start, dur, type = "triangle", vol = 0.18, slideTo = null) {
+  const a = ac(); if (!a) return;
+  const t0 = a.currentTime + start, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+const stageIndex = v => Math.max(0, Math.round(Math.log2(v)) - 1);           // 2 -> 0, 4 -> 1, ... 2048 -> 10
+function sfx(kind, v) {
+  if (!sfxOn) return;
+  if (kind === "slide") tone(180, 0, 0.05, "sine", 0.04);
+  else if (kind === "merge") { const f = 330 * Math.pow(2, stageIndex(v) / 5); tone(f, 0, 0.11, "triangle", 0.2, f * 1.5); }   // "뽁", one step higher per stage
+  else if (kind === "win") [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.11, 0.22, "triangle", 0.2));
+  else if (kind === "over") [392, 330, 262].forEach((f, i) => tone(f, i * 0.16, 0.26, "sine", 0.16));
+}
+function soundButtons() {
+  $("sfx").textContent = sfxOn ? "🔊 효과음" : "🔇 효과음 끔";
+  $("bgmbtn").textContent = bgmOn ? "🎵 배경음 켬" : "🎵 배경음 끔";
+}
+$("sfx").onclick = () => { sfxOn = !sfxOn; store.set("sfx", sfxOn); soundButtons(); if (sfxOn) sfx("merge", 2); };
+$("bgmbtn").onclick = () => {
+  const m = $("bgm"); bgmOn = !bgmOn; m.volume = 0.35;
+  if (bgmOn) m.play().catch(() => { bgmOn = false; soundButtons(); }); else m.pause();
+  soundButtons();
+};
+soundButtons();
+
+// board cells
+for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+  const cell = document.createElement("div"); cell.className = "cell"; cell.style.left = "2.5%"; cell.style.top = "2.5%";
+  cell.style.transform = `translate(${c * 117.65}%, ${r * 117.65}%)`; $("board").prepend(cell);
+}
+// legend
+for (const [v, e, label] of STAGES.slice(0, 11)) { const li = document.createElement("li"); li.textContent = `${e} ${label} (${v})`; $("legend").appendChild(li); }
+
+// input: arrow keys / WASD, swipe on the board
+const KEYS = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", a: "left", d: "right", w: "up", s: "down"};
+document.addEventListener("keydown", e => { const d = KEYS[e.key]; if (d) { e.preventDefault(); move(d); } });
+let sx = null, sy = null;
+$("board").addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; });
+$("board").addEventListener("pointerup", e => {
+  if (sx === null) return; const dx = e.clientX - sx, dy = e.clientY - sy; sx = sy = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+  move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+});
+$("new").onclick = () => { hide(); newGame(); };
+$("oagain").onclick = () => { hide(); newGame(); };
+$("ocont").onclick = () => { keepGoing = true; hide(); save(); };
+$("undo").onclick = () => { if (!history.length) return; hide(); restore(history.pop()); };
+
+// resume the last game in this browser
+const saved = seedParam ? null : store.get("game", null);
+if (saved && saved.grid) { nextId = store.get("next", 1000); restore(saved); } else newGame();
+window.__game = {move, get grid() { return grid.map(row => row.map(t => t && t.v)); }, get score() { return score; },
+                 set(g) { for (const el of tiles.values()) el.remove(); tiles.clear(); grid = g.map(row => row.map(v => v && {id: nextId++, v})); render(); }};
+</script>
+</body>
+</html>
