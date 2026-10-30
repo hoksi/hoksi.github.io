@@ -44,7 +44,6 @@ footer{margin-top:14px;font-size:12px;color:var(--mut);text-align:center}footer 
   </header>
   <div class="bar"><span class="hint">밀어서(또는 방향키) 같은 단계끼리 합치기</span><button class="ghost" id="undo">되돌리기</button><button id="new">새 게임</button></div>
   <div class="bar" style="margin-top:-4px"><button class="ghost" id="sfx">🔊 효과음</button><button class="ghost" id="bgmbtn">🎵 배경음 끔</button></div>
-  <audio id="bgm" src="bgm.ogg" loop preload="none"></audio>
   <div id="board"><div id="overlay"><h2 id="otitle"></h2><p id="otext"></p><div class="bar" style="justify-content:center"><button id="ocont" class="ghost">계속 만들기</button><button id="oagain">다시 하기</button></div></div></div>
   <div class="legend">아이디어 두 개를 합치면 메모, 메모 두 개를 합치면 설계… 이렇게 끝까지 가면 🎉 만들었다!
     <ol id="legend"></ol></div>
@@ -200,11 +199,17 @@ function soundButtons() {
   $("bgmbtn").textContent = bgmOn ? "🎵 배경음 켬" : "🎵 배경음 끔";
 }
 $("sfx").onclick = () => { sfxOn = !sfxOn; store.set("sfx", sfxOn); soundButtons(); if (sfxOn) sfx("merge", 2); };
-$("bgmbtn").onclick = () => {
-  const m = $("bgm"); bgmOn = !bgmOn; m.volume = 0.35;
-  if (bgmOn) m.play().catch(() => { bgmOn = false; soundButtons(); }); else m.pause();
-  soundButtons();
-};
+// background loop through Web Audio: an <audio loop> element leaves a gap at every wrap on most browsers (2026-10-30)
+let bgmBuf = null, bgmSrc = null, bgmGain = null;
+async function bgmStart() {
+  const a = ac(); if (!a) throw new Error("no audio");
+  if (!bgmBuf) bgmBuf = await a.decodeAudioData(await (await fetch("bgm.ogg")).arrayBuffer());
+  bgmGain = bgmGain || a.createGain(); bgmGain.gain.value = 0.35; bgmGain.connect(a.destination);
+  bgmSrc = a.createBufferSource(); bgmSrc.buffer = bgmBuf; bgmSrc.loop = true; bgmSrc.connect(bgmGain); bgmSrc.start();
+}
+function bgmStop() { if (bgmSrc) { try { bgmSrc.stop(); } catch (e) {} bgmSrc = null; } }
+$("bgmbtn").onclick = () => { bgmOn = !bgmOn;
+  if (bgmOn) bgmStart().catch(() => { bgmOn = false; soundButtons(); }); else bgmStop(); soundButtons(); };
 soundButtons();
 
 // board cells
