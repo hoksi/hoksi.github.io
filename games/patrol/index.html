@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>대신맨 패트롤 · 그래! 만들어보자</title>
+<meta name="description" content="문 패트롤에 바치는 오마주. 대신맨 버기는 알아서 쏩니다. 당신은 점프만!">
+<style>
+:root{--bg:#f6f4ef;--fg:#2d2a26;--mut:#7a746b;--card:#fffdf9;--btn:#2f6fed;--btnfg:#fff;--line:#d9d2c6}
+@media (prefers-color-scheme:dark){:root{--bg:#17161a;--fg:#ece7df;--mut:#a39d93;--card:#221f24;--btn:#5b8cff;--btnfg:#0d0d10;--line:#3a3631}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Noto Sans KR","Apple SD Gothic Neo",sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:0 0 2px}h1+p{margin:0 0 10px;color:var(--mut);font-size:13px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#1c1b2e;touch-action:manipulation;user-select:none}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated;outline:none}
+.hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;gap:8px;padding:8px 12px;font-weight:700;color:#fff;font-size:14px;pointer-events:none;text-shadow:0 1px 2px #0008}
+.toast{position:absolute;left:50%;top:34%;transform:translateX(-50%);color:#ffd166;font-weight:800;font-size:18px;text-shadow:0 2px 4px #000a;pointer-events:none;opacity:0;transition:opacity .3s}
+.toast.on{opacity:1}
+.ov{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(10,10,20,.55);color:#fff;text-align:center;padding:16px}
+.ov.hide{display:none}.ov h2{margin:0;font-size:24px}.ov p{margin:0;opacity:.9;font-size:14px}
+button{font:inherit;border:0;border-radius:999px;padding:8px 14px;background:var(--btn);color:var(--btnfg);font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.card{margin-top:12px;background:var(--card);border-radius:12px;padding:12px;font-size:13px;color:var(--mut);line-height:1.7}
+.card b{color:var(--fg)}
+footer{margin-top:14px;font-size:12px;color:var(--mut);text-align:center;line-height:1.6}footer a{color:var(--btn)}
+</style>
+</head>
+<body>
+<main>
+  <h1>대신맨 패트롤</h1>
+  <p>고전 오락실 게임 「문 패트롤」에 바치는 오마주. 쏘는 건 대신맨이 알아서, 당신은 점프만!</p>
+  <div class="stage" id="stage">
+    <canvas id="cv" tabindex="0"></canvas>
+    <div class="hud"><span id="hs">0</span><span id="ha">●●●</span><span id="hsec">구간 1 · 기획</span><span id="hbest">최고 0</span></div>
+    <div class="toast" id="toast"></div>
+    <div class="ov" id="ov"><h2 id="ot">대신맨 패트롤</h2><p id="op">탭하거나 스페이스를 눌러 출발!</p></div>
+  </div>
+  <div class="bar"><button class="ghost" id="sfx">🔊 효과음</button><button class="ghost" id="bgmbtn">🎵 배경음 끔</button></div>
+  <div class="card">
+    <b>조작</b> 탭 또는 스페이스로 점프 (공중에서 한 번 더). 총알은 앞과 위로 자동 발사: 세 발 쏘고 잠깐 장전(●●● → 장전…).<br>
+    <b>🐛 버그</b> 한 발이면 끝 · <b>🪨 바위</b> 두 발 · <b>🛸 날벌레</b> 위로 쏴서 잡기, 떨어지는 폭탄 조심 ·
+    <b>🕳️ 구덩이</b> 총으로 못 메워요, 무조건 점프! · <b>💡 아이디어</b> 6초 동안 장전 없이 연사!<br>
+    기획 → 설계 → 개발 → 테스트 → 배포 … 구간을 넘길 때마다 보너스!
+  </div>
+  <footer><a href="/">그래 만들어보자! 블로그</a> · <a href="/games/runner/">대신맨 러너</a> · <a href="/games/2048/">2048</a><br>
+    「문 패트롤」(Irem, 1982)에서 영감을 받은 팬 게임입니다 · 게임 엔진: KAPLAY (MIT) · 배경음: Meta MusicGen(small)으로 만든 곡, 비상업적 이용</footer>
+</main>
+<script src="kaplay.js"></script>
+<script>
+"use strict";
+// 대신맨 패트롤 for hoksi.github.io (2026-10-30). A Moon Patrol homage: auto-fire forward and up, jump over pits.
+// KAPLAY runs the loop/sprites/collisions; sprites are ASCII pixel art rendered to PNG; sounds are Web Audio synth.
+const $ = id => document.getElementById(id);
+const store = {get(k, d) { try { const v = localStorage.getItem("patrol_" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+               set(k, v) { try { localStorage.setItem("patrol_" + k, JSON.stringify(v)); } catch (e) {} }};
+let best = store.get("best", 0); $("hbest").textContent = "최고 " + best;
+
+// ---- sound
+let actx = null, sfxOn = store.get("sfx", true), bgmOn = false;
+function ac() { if (!actx) { const A = window.AudioContext || window.webkitAudioContext; if (A) actx = new A(); } if (actx && actx.state === "suspended") actx.resume(); return actx; }
+function tone(freq, start, dur, type = "square", vol = 0.06, slideTo = null) {
+  if (!sfxOn) return; const a = ac(); if (!a) return;
+  const t0 = a.currentTime + start, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function boom(vol = 0.12, dur = 0.25) {          // short noise burst for explosions
+  if (!sfxOn) return; const a = ac(); if (!a) return;
+  const n = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate), d = n.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+  const s = a.createBufferSource(), g = a.createGain(); s.buffer = n; g.gain.value = vol; s.connect(g).connect(a.destination); s.start();
+}
+const sfx = {shot: () => tone(1200, 0, 0.03, "square", 0.012, 700), jump: () => tone(300, 0, 0.12, "square", 0.05, 600),
+             jump2: () => tone(450, 0, 0.12, "square", 0.05, 900), kill: () => { boom(0.08, 0.15); tone(660, 0, 0.06, "square", 0.04, 330); },
+             thud: () => tone(160, 0, 0.06, "triangle", 0.06), bulb: () => { tone(988, 0, 0.07, "square", 0.05); tone(1319, 0.07, 0.12, "square", 0.05); },
+             over: () => { boom(0.18, 0.5); tone(260, 0.05, 0.4, "sawtooth", 0.06, 60); },
+             section: () => [523, 659, 784].forEach((f, i) => tone(f, i * 0.09, 0.14, "square", 0.05)),
+             reload: () => { tone(520, 0, 0.04, "square", 0.025); tone(780, 0.05, 0.04, "square", 0.025); }};
+function soundButtons() { $("sfx").textContent = sfxOn ? "🔊 효과음" : "🔇 효과음 끔"; $("bgmbtn").textContent = bgmOn ? "🎵 배경음 켬" : "🎵 배경음 끔"; }
+$("sfx").onclick = () => { sfxOn = !sfxOn; store.set("sfx", sfxOn); soundButtons(); };
+// background loop through Web Audio: an <audio loop> element leaves a gap at every wrap on most browsers
+let bgmBuf = null, bgmSrc = null, bgmGain = null;
+async function bgmStart() {
+  const a = ac(); if (!a) throw new Error("no audio");
+  if (!bgmBuf) bgmBuf = await a.decodeAudioData(await (await fetch("bgm.ogg")).arrayBuffer());
+  bgmGain = bgmGain || a.createGain(); bgmGain.gain.value = 0.28; bgmGain.connect(a.destination);
+  bgmSrc = a.createBufferSource(); bgmSrc.buffer = bgmBuf; bgmSrc.loop = true; bgmSrc.connect(bgmGain); bgmSrc.start();
+}
+function bgmStop() { if (bgmSrc) { try { bgmSrc.stop(); } catch (e) {} bgmSrc = null; } }
+$("bgmbtn").onclick = () => { bgmOn = !bgmOn; if (bgmOn) bgmStart().catch(() => { bgmOn = false; soundButtons(); }); else bgmStop(); soundButtons(); };
+soundButtons();
+
+// ---- game
+const W = 320, H = 180, GROUND = 150, S = 2;
+const SECTIONS = ["기획", "설계", "개발", "테스트", "배포", "운영", "리팩터링", "새 기능", "대규모 배포", "전설"];
+const SEC_LEN = 650;
+const k = kaplay({width: W, height: H, canvas: $("cv"), letterbox: true, crisp: true, global: false, touchToMouse: true,
+                  background: [28, 27, 46], debug: false});
+const seed = new URLSearchParams(location.search).get("seed");
+if (seed) k.randSeed(Number(seed));
+k.loadSprite("buggy", "buggy.png", {sliceX: 3, anims: {roll: {from: 0, to: 1, loop: true, speed: 10}, jump: 2}});
+k.loadSprite("bug", "bug.png", {sliceX: 2, anims: {walk: {from: 0, to: 1, loop: true, speed: 6}}});
+k.loadSprite("rock", "rock.png", {sliceX: 3});
+k.loadSprite("ufo", "ufo.png", {sliceX: 2, anims: {fly: {from: 0, to: 1, loop: true, speed: 8}}});
+k.loadSprite("bomb", "bomb.png");
+k.loadSprite("bulb", "bulb.png", {sliceX: 2, anims: {glow: {from: 0, to: 1, loop: true, speed: 3}}});
+k.setGravity(1250);
+
+let state = "ready", run = null, toastTimer = null;
+function overlay(t, p) { $("ot").textContent = t; $("op").textContent = p; $("ov").classList.remove("hide"); }
+function toast(t) { $("toast").textContent = t; $("toast").classList.add("on"); clearTimeout(toastTimer); toastTimer = setTimeout(() => $("toast").classList.remove("on"), 1300); }
+const scoreOf = () => Math.floor(run.dist / 10) + run.pts;
+
+k.scene("game", () => {
+  run = {speed: 120, dist: 0, pts: 0, next: 1.2, fire: 0, power: 0, section: 0, reason: "", ammo: 3, reload: 0};
+  // parallax: stars, far mountains (slow), city (medium), then the ground
+  for (let i = 0; i < 26; i++) k.add([k.rect(1, 1), k.pos(k.rand(0, W), k.rand(0, 90)), k.color(255, 255, 255), k.opacity(k.rand(0.3, 0.9))]);
+  const layers = [];
+  function layer(factor, wrapAt, span, make) { const objs = make(); objs.forEach(o => layers.push({o, factor, wrapAt, span})); }
+  layer(0.12, -240, 690, () => [0, 1, 2].map(i => k.add([k.polygon([k.vec2(0, 60), k.vec2(70, 0), k.vec2(120, 30), k.vec2(170, 5), k.vec2(240, 60)]),
+                                                k.pos(i * 230, GROUND - 60), k.color(52, 50, 84)])));
+  layer(0.35, -40, 432, () => {
+    const out = [];
+    for (let i = 0; i < 12; i++) {
+      const h = k.rand(22, 52), x = i * 36;
+      out.push(k.add([k.rect(28, h), k.pos(x, GROUND - h), k.color(40, 44, 70)]));
+      for (let wy = GROUND - h + 5; wy < GROUND - 6; wy += 8)
+        for (let wx = x + 5; wx < x + 24; wx += 8) if (k.rand() < 0.5) out.push(k.add([k.rect(3, 3), k.pos(wx, wy), k.color(255, 209, 102), k.opacity(0.7)]));
+    }
+    return out;
+  });
+  k.add([k.rect(W, H - GROUND), k.pos(0, GROUND), k.area(), k.body({isStatic: true}), k.color(122, 104, 140), "ground"]);
+  const dots = [];
+  for (let i = 0; i < 16; i++) dots.push(k.add([k.rect(k.rand(2, 6), 2), k.pos(i * 22, GROUND + k.rand(6, 26)), k.color(96, 80, 114)]));
+
+  const hero = k.add([k.sprite("buggy", {anim: "roll"}), k.pos(30, GROUND - 16 * S), k.scale(S),
+                      k.area({shape: new k.Rect(k.vec2(2, 4), 22, 11)}), k.body(), k.doubleJump(2), k.z(5), "hero"]);
+  hero.onGround(() => { if (state === "play") { hero.play("roll"); sfx.thud(); } });
+  hero.onDoubleJump(() => sfx.jump2());
+
+  function over(reason) {
+    if (state !== "play") return;
+    state = "over"; run.reason = reason; sfx.over(); k.shake(8); hero.stop();
+    const score = scoreOf(), record = score > best;
+    if (record) { best = score; store.set("best", best); $("hbest").textContent = "최고 " + best; }
+    overlay(record ? `새 기록! ${score}점` : reason, `${record ? reason + " · " : ""}점수 ${score} · 구간 ${run.section + 1} ${SECTIONS[Math.min(run.section, SECTIONS.length - 1)]} · 탭해서 다시`);
+  }
+  function jump() {
+    if (state === "ready") { state = "play"; $("ov").classList.add("hide"); ac(); return; }
+    if (state === "over") { k.go("game"); state = "play"; $("ov").classList.add("hide"); return; }
+    if (hero.isGrounded()) sfx.jump();
+    hero.doubleJump(410); hero.play("jump");
+  }
+  k.onKeyPress(["space", "up", "w"], jump);
+  k.onMousePress(jump);
+  hero.onCollide("bug", () => over("버그에 부딪혔어요"));
+  hero.onCollide("rock", () => over("바위에 부딪혔어요"));
+  hero.onCollide("bomb", () => over("폭탄에 맞았어요"));
+  hero.onCollide("bulb", b => { k.destroy(b); run.pts += 20; run.power = 6; sfx.bulb(); toast("💡 연사 강화!"); });
+
+  const scroll = (o, f = 1) => o.onUpdate(() => { if (state === "play") o.move(-run.speed * f, 0); if (o.pos.x < -60) k.destroy(o); });
+  function shoot() {
+    const fx = hero.pos.x + 24 * S, fy = hero.pos.y + 9 * S;
+    const b1 = k.add([k.rect(6, 2), k.pos(fx, fy), k.color(255, 230, 128), k.area(), k.z(4), "shot"]);
+    b1.onUpdate(() => { b1.move(460, 0); if (b1.pos.x > W + 10) k.destroy(b1); });
+    const b2 = k.add([k.rect(2, 6), k.pos(hero.pos.x + 14 * S, hero.pos.y), k.color(159, 231, 255), k.area(), k.z(4), "shot"]);
+    b2.onUpdate(() => { b2.move(0, -400); if (b2.pos.y < -10) k.destroy(b2); });
+    sfx.shot();
+  }
+  function hit(target, pts) { run.pts += pts; sfx.kill(); k.destroy(target); }
+  k.onCollide("shot", "bug", (s, b) => { k.destroy(s); hit(b, 10); });
+  k.onCollide("shot", "ufo", (s, u) => { k.destroy(s); hit(u, 50); });
+  k.onCollide("shot", "bomb", (s, b) => { k.destroy(s); hit(b, 5); });
+  k.onCollide("shot", "rock", (s, r) => { k.destroy(s); r.hp--; if (r.hp <= 0) hit(r, 30); else { r.frame = 2; sfx.thud(); } });
+
+  function spawnBug() { const b = k.add([k.sprite("bug", {anim: "walk"}), k.pos(W + 10, GROUND - 12 * S), k.scale(S), k.area({shape: new k.Rect(k.vec2(2, 2), 12, 9)}), "bug"]); scroll(b, 1.15); }
+  function spawnRock() { const r = k.add([k.sprite("rock", {frame: 0}), k.pos(W + 10, GROUND - 12 * S), k.scale(S), k.area({shape: new k.Rect(k.vec2(1, 2), 14, 10)}), "rock", {hp: 2}]); scroll(r); }
+  function spawnPit() {
+    const w = k.rand(26, 40);
+    const p = k.add([k.rect(w, H - GROUND), k.pos(W + 10, GROUND), k.color(18, 16, 30), k.z(3), "pit", {w}]); scroll(p);
+  }
+  function spawnUfo() {
+    const u = k.add([k.sprite("ufo", {anim: "fly"}), k.pos(W + 10, k.rand(18, 50)), k.scale(S), k.area(), "ufo", {t: 0, drop: k.rand(0.6, 1.2)}]);
+    u.onUpdate(() => {
+      if (state !== "play") return;
+      u.t += k.dt(); u.move(-run.speed * 0.45, Math.sin(u.t * 3) * 25); u.drop -= k.dt();
+      if (u.drop <= 0 && u.pos.x < W - 20) {
+        u.drop = k.rand(1.1, 2.0);
+        const b = k.add([k.sprite("bomb"), k.pos(u.pos.x + 12, u.pos.y + 18), k.scale(S), k.area(), "bomb", {vy: 40}]);
+        b.onUpdate(() => { if (state !== "play") return; b.vy += 420 * k.dt(); b.move(-run.speed * 0.45, b.vy); if (b.pos.y > GROUND - 8) { boom(0.05, 0.12); k.destroy(b); } });
+      }
+      if (u.pos.x < -40) k.destroy(u);
+    });
+  }
+  function spawnBulb() { const l = k.add([k.sprite("bulb", {anim: "glow"}), k.pos(W + 20, GROUND - k.rand(50, 95)), k.scale(S), k.area(), "bulb"]); scroll(l); }
+
+  function spawn() {
+    const d = run.dist, r = k.rand();
+    if (d < 250) return spawnBug();
+    if (r < 0.30) spawnBug();
+    else if (r < 0.52) spawnPit();
+    else if (r < 0.70) spawnRock();
+    else if (r < 0.86 && d > 600) spawnUfo();
+    else spawnBug();
+    if (k.rand() < 0.22) spawnBulb();
+  }
+  k.onUpdate(() => {
+    if (state !== "play") return;
+    const dt = k.dt();
+    run.dist += run.speed * dt;
+    run.speed = Math.min(120 + run.dist / 22, 300);
+    for (const {o, factor, wrapAt, span} of layers) { o.move(-run.speed * factor, 0); if (o.pos.x < wrapAt) o.pos.x += span; }   // re-enter off-screen right
+    for (const d of dots) { d.move(-run.speed, 0); if (d.pos.x < -8) d.pos.x += 352; }
+    // pits: on the ground over a pit = fall
+    for (const p of k.get("pit")) {
+      const cx = hero.pos.x + 13 * S;
+      if (hero.isGrounded() && cx > p.pos.x + 4 && cx < p.pos.x + p.w - 4) { hero.pos.y += 14; over("구덩이에 빠졌어요"); return; }
+    }
+    // 3-shot bursts, then a reload pause that grows a little per section (user: "3발 발사후 딜레이", 2026-10-30).
+    // A 💡 power-up fires without reloading for 6 s.
+    run.fire -= dt; run.power = Math.max(0, run.power - dt);
+    if (run.power > 0) { run.ammo = 3; run.reload = 0; if (run.fire <= 0) { shoot(); run.fire = 0.18; } }
+    else if (run.reload > 0) { run.reload -= dt; if (run.reload <= 0) { run.ammo = 3; sfx.reload(); } }
+    else if (run.fire <= 0 && run.ammo > 0) {
+      shoot(); run.ammo--; run.fire = 0.15;
+      if (run.ammo === 0) run.reload = Math.min(1.0 + 0.05 * run.section, 1.4);
+    }
+    $("ha").textContent = run.power > 0 ? "∞ 연사" : run.reload > 0 ? "장전…" : "●".repeat(run.ammo) + "○".repeat(3 - run.ammo);
+    run.next -= dt;
+    if (run.next <= 0) { spawn(); run.next = k.rand(0.9, 1.6) * (150 / run.speed) + 0.45; }
+    const sec = Math.floor(run.dist / SEC_LEN);
+    if (sec > run.section) { run.section = sec; run.pts += 100; sfx.section(); toast(`구간 ${sec + 1} · ${SECTIONS[Math.min(sec, SECTIONS.length - 1)]}  +100`); }
+    $("hs").textContent = scoreOf() + (run.power > 0 ? "  💡" : "");
+    $("hsec").textContent = `구간 ${run.section + 1} · ${SECTIONS[Math.min(run.section, SECTIONS.length - 1)]}`;
+  });
+  window.__patrol = {get state() { return state; }, get run() { return run; }, hero, jump, spawnBug, spawnRock, spawnPit, spawnUfo, spawnBulb, k};
+});
+k.go("game");
+overlay("대신맨 패트롤", "탭하거나 스페이스를 눌러 출발! 쏘는 건 알아서, 당신은 점프만");
+</script>
+</body>
+</html>
