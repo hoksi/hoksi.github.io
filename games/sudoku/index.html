@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>대신맨 스도쿠 · 그래! 만들어보자</title>
+<meta name="description" content="매번 새로 만들어지는 스도쿠. 막히면 대신맨이 한 칸씩 힌트를 줘요.">
+<style>
+:root{--bg:#f6f4ef;--fg:#2d2a26;--mut:#7a746b;--line:#d9d1c3;--thick:#4a443c;--card:#fffdf9;--btn:#2f6fed;--btnfg:#fff;--sel:#cfe0ff;--peer:#eef2fa;--same:#dbe7ff;--bad:#d9534f;--ink:#2f6fed;--chip:#efe9df}
+@media (prefers-color-scheme:dark){:root{--bg:#17161a;--fg:#ece7df;--mut:#a39d93;--line:#3a3631;--thick:#bdb4a6;--card:#221f24;--btn:#5b8cff;--btnfg:#0d0d10;--sel:#2c3d63;--peer:#262833;--same:#2f3b57;--bad:#ff6b66;--ink:#8fb0ff;--chip:#2c2930}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Noto Sans KR","Apple SD Gothic Neo",sans-serif}
+main{max-width:480px;margin:0 auto;padding:16px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-bottom:8px}
+h1{font-size:22px;margin:0;line-height:1.2}h1 small{display:block;font-size:13px;color:var(--mut);font-weight:400;margin-top:2px}
+.stat{display:flex;gap:6px}.sc{background:var(--chip);border-radius:8px;padding:4px 10px;text-align:center;min-width:58px}
+.sc b{display:block;font-size:17px;font-variant-numeric:tabular-nums}.sc span{font-size:11px;color:var(--mut)}
+.bar{display:flex;gap:6px;align-items:center;margin:8px 0;flex-wrap:wrap}
+button{font:inherit;border:0;border-radius:999px;padding:7px 13px;background:var(--btn);color:var(--btnfg);font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button.on{background:var(--btn);color:var(--btnfg);border-color:var(--btn)}
+button:disabled{opacity:.4;cursor:default}
+.diff button{padding:6px 12px;font-size:14px}
+#board{position:relative;display:grid;grid-template-columns:repeat(9,1fr);width:100%;aspect-ratio:1;background:var(--card);border:2.5px solid var(--thick);border-radius:6px;user-select:none;touch-action:manipulation}
+.c{position:relative;display:flex;align-items:center;justify-content:center;font-size:clamp(18px,6vw,28px);border-right:1px solid var(--line);border-bottom:1px solid var(--line);cursor:pointer;color:var(--ink)}
+.c.lc{border-right:0}.c.lr{border-bottom:0}   /* classes, not nth-child: the overlay is the board's first child */
+.c.br{border-right:2px solid var(--thick)}.c.bb{border-bottom:2px solid var(--thick)}
+.c.given{color:var(--fg);font-weight:700}
+.c.peer{background:var(--peer)}.c.same{background:var(--same)}.c.sel{background:var(--sel)}
+.c.bad{color:var(--bad)}.c.hint{animation:glow 1s ease-out}
+.c.done{animation:pop .45s ease-out}
+@keyframes glow{from{background:#ffe9a8}}
+@keyframes pop{40%{transform:scale(1.12)}}
+.notes{position:absolute;inset:2px;display:grid;grid-template-columns:repeat(3,1fr);font-size:clamp(8px,2.4vw,11px);color:var(--mut);line-height:1;font-weight:400}
+.notes span{display:flex;align-items:center;justify-content:center}
+.pad{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;margin-top:10px}
+.pad button{padding:9px 0;font-size:20px;border-radius:10px;position:relative}
+.pad button small{position:absolute;right:4px;bottom:1px;font-size:10px;opacity:.75;font-weight:400}
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.tools button{border-radius:10px;padding:8px 0;font-size:14px}
+#overlay{position:absolute;inset:0;z-index:10;border-radius:4px;background:rgba(246,244,239,.9);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px}
+@media (prefers-color-scheme:dark){#overlay{background:rgba(23,22,26,.9)}}
+#overlay.show{display:flex}#overlay h2{margin:0;font-size:26px}#overlay p{margin:0;color:var(--mut)}
+.legend{margin-top:14px;background:var(--card);border-radius:12px;padding:12px;font-size:13px;color:var(--mut);line-height:1.6}
+footer{margin-top:14px;font-size:12px;color:var(--mut);text-align:center}footer a{color:var(--btn)}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>대신맨 스도쿠<small>막히면 대신맨이 한 칸 알려 줘요</small></h1>
+    <div class="stat"><div class="sc"><span>시간</span><b id="time">0:00</b></div><div class="sc"><span>실수</span><b id="miss">0</b></div></div>
+  </header>
+  <div class="bar diff" id="diff"></div>
+  <div id="board"><div id="overlay"><h2 id="otitle"></h2><p id="otext"></p><div class="bar" style="justify-content:center"><button id="oagain">새 문제</button></div></div></div>
+  <div class="pad" id="pad"></div>
+  <div class="tools">
+    <button class="ghost" id="notes">✏️ 메모</button><button class="ghost" id="erase">⌫ 지우기</button>
+    <button class="ghost" id="undo">↩️ 되돌리기</button><button class="ghost" id="hint">💡 힌트</button>
+  </div>
+  <div class="bar" style="margin-top:10px"><button class="ghost" id="sfx">🔊 효과음</button><button class="ghost" id="bgmbtn">🎵 배경음 끔</button><button class="ghost" id="newbtn">새 문제</button></div>
+  <div class="legend">칸을 누르고 아래 숫자를 누르세요. 가로줄, 세로줄, 굵은 3×3 칸마다 1~9가 한 번씩 들어가면 끝!<br>
+    ✏️ 메모를 켜면 후보 숫자를 작게 적어 둘 수 있어요. 틀린 숫자는 빨갛게 보여요. 키보드는 방향키, 1~9, Backspace, N(메모).<br>
+    문제는 열 때마다 새로 만들어지고, 답이 딱 하나인 것만 나와요.</div>
+  <footer><a href="/">그래 만들어보자! 블로그</a> · <a href="/games/">다른 게임</a><br>배경음: Meta MusicGen(small)으로 만든 곡 · 비상업적 이용</footer>
+</main>
+<script>
+"use strict";
+// 대신맨 스도쿠 for hoksi.github.io (2026-10-31). Plain JS, no libraries, runs entirely in the visitor's browser.
+// Puzzles are generated here: a random full grid, then cells are removed one by one as long as the answer stays unique.
+const $ = id => document.getElementById(id);
+const store = {get(k, d) { try { const v = localStorage.getItem("dsudoku_" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+               set(k, v) { try { localStorage.setItem("dsudoku_" + k, JSON.stringify(v)); } catch (e) {} }};
+const DIFFS = {easy: ["쉬움", 40], normal: ["보통", 32], hard: ["어려움", 26]};   // target number of givens
+const ROW = i => Math.floor(i / 9), COL = i => i % 9, BOX = i => Math.floor(ROW(i) / 3) * 3 + Math.floor(COL(i) / 3);
+const PEERS = Array.from({length: 81}, (_, i) => [...Array(81).keys()].filter(j => j !== i && (ROW(j) === ROW(i) || COL(j) === COL(i) || BOX(j) === BOX(i))));
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+// ---- solver: bitmask backtracking, fewest candidates first; counts solutions up to `limit`
+function solve(g, limit, randomize) {
+  g = g.slice(); const r = Array(9).fill(0), c = Array(9).fill(0), b = Array(9).fill(0);
+  for (let i = 0; i < 81; i++) if (g[i]) { const m = 1 << g[i]; r[ROW(i)] |= m; c[COL(i)] |= m; b[BOX(i)] |= m; }
+  let count = 0, first = null;
+  const bits = m => { let n = 0; while (m) { m &= m - 1; n++; } return n; };
+  (function rec() {
+    let best = -1, bf = 0, bn = 10;
+    for (let i = 0; i < 81; i++) if (!g[i]) {
+      const f = ~(r[ROW(i)] | c[COL(i)] | b[BOX(i)]) & 0x3FE, n = bits(f);
+      if (n < bn) { best = i; bf = f; bn = n; if (!n) return false; }
+    }
+    if (best < 0) { count++; if (!first) first = g.slice(); return count >= limit; }
+    const vs = []; for (let v = 1; v <= 9; v++) if (bf & (1 << v)) vs.push(v);
+    if (randomize) shuffle(vs);
+    for (const v of vs) {
+      const m = 1 << v; g[best] = v; r[ROW(best)] |= m; c[COL(best)] |= m; b[BOX(best)] |= m;
+      const stop = rec();
+      g[best] = 0; r[ROW(best)] &= ~m; c[COL(best)] &= ~m; b[BOX(best)] &= ~m;
+      if (stop) return true;
+    }
+    return false;
+  })();
+  return {count, first};
+}
+function generate(target) {
+  const full = solve(Array(81).fill(0), 1, true).first, p = full.slice();
+  let givens = 81;
+  for (const i of shuffle([...Array(81).keys()])) {
+    if (givens <= target) break;
+    const v = p[i]; p[i] = 0;
+    if (solve(p, 2).count !== 1) p[i] = v; else givens--;
+  }
+  return {puzzle: p, solution: full};
+}
+
+// ---- state
+let S, sel = -1, notesMode = false, timer = null;
+function newGame(diff) {
+  diff = diff || (S && S.diff) || store.get("diff", "easy");
+  const {puzzle, solution} = generate(DIFFS[diff][1]);
+  S = {diff, puzzle, solution, cells: puzzle.slice(), notes: Array.from({length: 81}, () => []), miss: 0, secs: 0, hints: 0, done: false, hist: []};
+  store.set("diff", diff); sel = puzzle.indexOf(0); hideOverlay(); save(); render(); diffButtons();
+}
+function save() { store.set("game", S); }
+function load() {
+  const g = store.get("game", null);
+  if (g && g.puzzle && g.cells && !g.done) { S = g; S.hist = S.hist || []; sel = S.cells.indexOf(0); render(); diffButtons(); return true; }
+  return false;
+}
+
+// ---- actions
+function push() { S.hist.push({cells: S.cells.slice(), notes: S.notes.map(n => n.slice())}); if (S.hist.length > 60) S.hist.shift(); }
+function input(v) {
+  if (!S || S.done || sel < 0 || S.puzzle[sel]) return;
+  if (notesMode && v) {
+    if (S.cells[sel]) return;
+    push(); const n = S.notes[sel], k = n.indexOf(v); k < 0 ? n.push(v) : n.splice(k, 1); sfx("note");
+  } else {
+    if (S.cells[sel] === v) return;
+    push(); S.cells[sel] = v; S.notes[sel] = [];
+    if (v) {
+      if (v !== S.solution[sel]) { S.miss++; sfx("bad"); }
+      else {
+        for (const j of PEERS[sel]) { const k = S.notes[j].indexOf(v); if (k >= 0) S.notes[j].splice(k, 1); }   // tidy notes
+        const units = completed(sel);
+        sfx(units.length ? "unit" : "ok"); if (units.length) flash(units);
+      }
+    }
+  }
+  save(); render(); checkWin();
+}
+function completed(i) {   // rows/columns/boxes through i that are now fully and correctly filled
+  const groups = [PEERS[i].filter(j => ROW(j) === ROW(i)), PEERS[i].filter(j => COL(j) === COL(i)), PEERS[i].filter(j => BOX(j) === BOX(i))];
+  return groups.filter(g => g.concat([i]).every(j => S.cells[j] === S.solution[j])).map(g => g.concat([i]));
+}
+function hint() {
+  if (!S || S.done) return;
+  let i = sel >= 0 && S.cells[sel] !== S.solution[sel] ? sel : -1;
+  if (i < 0) { const open = [...Array(81).keys()].filter(j => S.cells[j] !== S.solution[j]); if (!open.length) return; i = open[Math.floor(Math.random() * open.length)]; }
+  push(); S.cells[i] = S.solution[i]; S.notes[i] = []; S.hints++; sel = i;
+  for (const j of PEERS[i]) { const k = S.notes[j].indexOf(S.cells[i]); if (k >= 0) S.notes[j].splice(k, 1); }
+  sfx("hint"); save(); render(); cellEl(i).classList.add("hint"); checkWin();
+}
+function undo() { if (!S || S.done || !S.hist.length) return; const h = S.hist.pop(); S.cells = h.cells; S.notes = h.notes; save(); render(); }
+function checkWin() {
+  if (S.cells.some((v, i) => v !== S.solution[i])) return;
+  S.done = true; clearInterval(timer); save();
+  const best = store.get("best_" + S.diff, null), rec = best === null || S.secs < best;
+  if (rec) store.set("best_" + S.diff, S.secs);
+  diffButtons();
+  setTimeout(() => {
+    sfx("win");
+    showOverlay("🎉 다 풀었어요!", `${DIFFS[S.diff][0]} · ${fmt(S.secs)} · 실수 ${S.miss}` + (S.hints ? ` · 힌트 ${S.hints}` : "") +
+      (rec ? " · 최고 기록!" : ` · 최고 ${fmt(best)}`));
+  }, 500);
+}
+
+// ---- rendering
+const fmt = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+const cellEl = i => $("board").children[i + 1];
+function build() {
+  const board = $("board");
+  for (let i = 0; i < 81; i++) {
+    const c = document.createElement("div"); c.className = "c";
+    if (COL(i) === 2 || COL(i) === 5) c.classList.add("br"); if (ROW(i) === 2 || ROW(i) === 5) c.classList.add("bb");
+    if (COL(i) === 8) c.classList.add("lc"); if (ROW(i) === 8) c.classList.add("lr");
+    c.onclick = () => { sel = i; render(); };
+    board.append(c);
+  }
+  for (let v = 1; v <= 9; v++) { const b = document.createElement("button"); b.className = "ghost"; b.dataset.v = v; b.onclick = () => input(v); $("pad").append(b); }
+}
+function render() {
+  const sv = sel >= 0 ? S.cells[sel] : 0;
+  for (let i = 0; i < 81; i++) {
+    const c = cellEl(i), v = S.cells[i];
+    c.classList.toggle("given", !!S.puzzle[i]);
+    c.classList.toggle("sel", i === sel);
+    c.classList.toggle("peer", sel >= 0 && i !== sel && PEERS[sel].includes(i));
+    c.classList.toggle("same", !!sv && i !== sel && v === sv);
+    c.classList.toggle("bad", !!v && v !== S.solution[i]);
+    c.classList.remove("hint");
+    if (v) c.textContent = v;
+    else if (S.notes[i].length) { c.textContent = ""; const n = document.createElement("div"); n.className = "notes";
+      for (let k = 1; k <= 9; k++) { const s = document.createElement("span"); s.textContent = S.notes[i].includes(k) ? k : ""; n.append(s); } c.append(n); }
+    else c.textContent = "";
+  }
+  for (const b of $("pad").children) {
+    const v = +b.dataset.v, left = 9 - S.cells.filter((x, i) => x === v && x === S.solution[i]).length;
+    b.innerHTML = `${v}<small>${left || ""}</small>`; b.disabled = !left;
+  }
+  $("notes").classList.toggle("on", notesMode); $("miss").textContent = S.miss; $("time").textContent = fmt(S.secs);
+  $("undo").disabled = !S.hist.length;
+}
+function flash(units) { for (const u of units) for (const j of u) { const c = cellEl(j); c.classList.remove("done"); void c.offsetWidth; c.classList.add("done"); } }
+function diffButtons() {
+  const box = $("diff"); box.replaceChildren();
+  for (const [k, [n]] of Object.entries(DIFFS)) {
+    const b = document.createElement("button"); b.className = "ghost" + (S && S.diff === k ? " on" : ""); b.textContent = n;
+    const best = store.get("best_" + k, null); if (best !== null) b.textContent += ` · 🏆${fmt(best)}`;
+    b.onclick = () => { if (S && !S.done && S.cells.some((v, i) => v && !S.puzzle[i]) && !confirm("지금 문제를 그만두고 새로 시작할까요?")) return; newGame(k); };
+    box.append(b);
+  }
+}
+function showOverlay(t, p) { $("otitle").textContent = t; $("otext").textContent = p; $("overlay").classList.add("show"); }
+function hideOverlay() { $("overlay").classList.remove("show"); }
+function tickStart() {
+  clearInterval(timer);
+  timer = setInterval(() => { if (S && !S.done && !document.hidden) { S.secs++; $("time").textContent = fmt(S.secs); if (S.secs % 10 === 0) save(); } }, 1000);
+}
+
+// ---- sound: Web Audio effects; the background loop (bgm.ogg, MusicGen on the author's home server) is off by default
+let actx = null, sfxOn = store.get("sfx", true), bgmOn = false, bgmBuf = null, bgmSrc = null;
+function ac() { if (!actx) { const A = window.AudioContext || window.webkitAudioContext; if (A) actx = new A(); } if (actx && actx.state === "suspended") actx.resume(); return actx; }
+function tone(f, start, dur, type = "sine", vol = 0.08, to = null) {
+  const a = ac(); if (!a) return;
+  const t0 = a.currentTime + start, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t0); if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function sfx(k) {
+  if (!sfxOn) return;
+  if (k === "ok") tone(880, 0, 0.09, "triangle", 0.07);
+  else if (k === "note") tone(1200, 0, 0.04, "sine", 0.03);
+  else if (k === "bad") tone(200, 0, 0.25, "sawtooth", 0.04, 140);
+  else if (k === "unit") [784, 988, 1175].forEach((f, i) => tone(f, i * 0.07, 0.14, "triangle", 0.07));
+  else if (k === "hint") [660, 990].forEach((f, i) => tone(f, i * 0.08, 0.15, "sine", 0.07));
+  else if (k === "win") [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i * 0.1, 0.25, "triangle", 0.08));
+}
+async function bgmStart() {
+  const a = ac(); if (!a) throw new Error("no audio");
+  if (!bgmBuf) bgmBuf = await a.decodeAudioData(await (await fetch("bgm.ogg")).arrayBuffer());
+  const g = a.createGain(); g.gain.value = 0.3; g.connect(a.destination);
+  bgmSrc = a.createBufferSource(); bgmSrc.buffer = bgmBuf; bgmSrc.loop = true; bgmSrc.connect(g); bgmSrc.start();
+}
+function bgmStop() { if (bgmSrc) { try { bgmSrc.stop(); } catch (e) {} bgmSrc = null; } }
+function soundButtons() { $("sfx").textContent = sfxOn ? "🔊 효과음" : "🔇 효과음 끔"; $("bgmbtn").textContent = bgmOn ? "🎵 배경음 켬" : "🎵 배경음 끔"; }
+$("sfx").onclick = () => { sfxOn = !sfxOn; store.set("sfx", sfxOn); soundButtons(); };
+$("bgmbtn").onclick = () => { bgmOn = !bgmOn; if (bgmOn) bgmStart().catch(() => { bgmOn = false; soundButtons(); }); else bgmStop(); soundButtons(); };
+
+// ---- wiring
+$("notes").onclick = () => { notesMode = !notesMode; render(); };
+$("erase").onclick = () => input(0);
+$("undo").onclick = undo; $("hint").onclick = hint;
+$("newbtn").onclick = () => { if (S && !S.done && S.cells.some((v, i) => v && !S.puzzle[i]) && !confirm("지금 문제를 그만두고 새로 시작할까요?")) return; newGame(); };
+$("oagain").onclick = () => newGame();
+document.addEventListener("keydown", e => {
+  if (!S) return;
+  const k = e.key;
+  if (/^[1-9]$/.test(k)) input(+k);
+  else if (k === "Backspace" || k === "Delete" || k === "0") input(0);
+  else if (k === "n" || k === "N") { notesMode = !notesMode; render(); }
+  else if (k.startsWith("Arrow")) {
+    if (sel < 0) sel = 0;
+    const r = ROW(sel), c = COL(sel);
+    sel = k === "ArrowUp" ? ((r + 8) % 9) * 9 + c : k === "ArrowDown" ? ((r + 1) % 9) * 9 + c : k === "ArrowLeft" ? r * 9 + (c + 8) % 9 : r * 9 + (c + 1) % 9;
+    render(); e.preventDefault();
+  } else return;
+});
+build(); soundButtons();
+if (!load()) newGame();
+tickStart();
+</script>
+</body>
+</html>

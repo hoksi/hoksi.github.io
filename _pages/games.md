@@ -26,3 +26,8 @@ author_profile: false
 아이디어를 먹고 길어지는 뱀이에요. 밀거나 방향키로 움직여요.
 
 <a href="/games/snake/"><img src="/assets/images/games/snake.jpg" alt="대신맨 스네이크 게임 화면" style="width: 100%; max-width: 300px; border-radius: 8px"></a>
+
+### 🔢 [대신맨 스도쿠](/games/sudoku/)
+열 때마다 새 문제가 만들어져요. 막히면 💡 대신맨이 한 칸 알려 줘요.
+
+<a href="/games/sudoku/"><img src="/assets/images/games/sudoku.jpg" alt="대신맨 스도쿠 게임 화면" style="width: 100%; max-width: 300px; border-radius: 8px"></a>
