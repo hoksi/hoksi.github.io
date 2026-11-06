@@ -45,6 +45,7 @@
   .brow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .bar button { padding: 4px 9px; }
   .sep { width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
+  #tAuto[aria-pressed="true"] { background: var(--input); border-color: var(--input); color: #000; }
   .chip input { display: none; }
   .chip span { display: inline-block; padding: 3px 10px; border-radius: 999px; border: 1px solid #5c7a6a; cursor: pointer; font-weight: 600; user-select: none; }
   .chip input:checked + span { background: var(--input); border-color: var(--input); color: #000; }
@@ -102,6 +103,7 @@
         <span class="sep"></span>
         <button id="tFree">손으로 하기</button>
         <button id="tSound" title="소리 켜기/끄기">🔊 소리</button>
+        <button id="tAuto" title="3초마다 자동 저장 (켜면 손으로 할 때 살짝 끊길 수 있어요)">자동 저장 꺼짐</button>
       </div>
       <p class="cap" id="recNote"></p>
       <p class="cap">단축키(멈춤 중): Space 멈춤/계속 · <b>.</b> +1 · Shift+<b>.</b> +10 · <b>/</b> +60 · <b>,</b> 뒤로 · Shift+<b>,</b> 3초 전 · K 점프 1번 · J 도끼 1번 · ← → 누른 채로 켜기/끄기</p>
@@ -269,6 +271,7 @@ async function startMAME(buf, set) {
         setStatus("live", "실시간 · 지금 직접 플레이 중");
         $("keys").hidden = false; $("restart").hidden = false; $("forgetRom").hidden = false; $("tas").hidden = false; $("tabs").hidden = false; showTab("lib"); $("editor").hidden = false; tasPoll(); if (PLAYED_EDIT) edOpen(PLAYED_EDIT.frames, PLAYED_EDIT.id, PLAYED_EDIT.first);
         if (!soundOn) tas("mute", "1");
+        if (autoOn) { await sleep(150); tas("autosave", "1"); await sleep(150); }
         if (!PLAY) await newGame(true); else log("입력 기록 재생 중 (전원 켠 순간부터)");
       }, 6000);
     },
@@ -302,10 +305,20 @@ $("tFree").onclick = () => tas("free");
 // only after a click or key, so the SDL audio context is resumed on the first one.
 let soundOn = true; try { soundOn = localStorage.getItem("wboy-sound") !== "off"; } catch (e) {}
 const showSound = () => { $("tSound").textContent = soundOn ? "🔊 소리" : "🔇 소리 꺼짐"; };
-$("tSound").onclick = () => { soundOn = !soundOn; try { localStorage.setItem("wboy-sound", soundOn ? "on" : "off"); } catch (e) {} tas("mute", soundOn ? "0" : "1"); showSound(); resumeAudio(); };
+$("tSound").onclick = () => { soundOn = !soundOn; try { localStorage.setItem("wboy-sound", soundOn ? "on" : "off"); } catch (e) {} tas("mute", soundOn ? "0" : "1"); showSound();
+// autosave switch (user 11-06: "켜고 끄는 버튼"): off by default because each save hitches the game a little
+let autoOn = false; try { autoOn = localStorage.getItem("wboy-autosave") === "on"; } catch (e) {}
+const showAuto = () => { $("tAuto").textContent = autoOn ? "자동 저장 켜짐" : "자동 저장 꺼짐"; $("tAuto").setAttribute("aria-pressed", autoOn); };
+$("tAuto").onclick = () => { autoOn = !autoOn; try { localStorage.setItem("wboy-autosave", autoOn ? "on" : "off"); } catch (e) {} tas("autosave", autoOn ? "1" : "0"); showAuto(); };
+showAuto(); resumeAudio(); };
 function resumeAudio() { try { const ac = window.Module && Module.SDL2 && Module.SDL2.audioContext; if (ac && ac.state === "suspended") ac.resume(); } catch (e) {} }
 for (const t of ["pointerdown", "keydown"]) window.addEventListener(t, resumeAudio, true);
 showSound();
+// autosave switch (user 11-06: "켜고 끄는 버튼"): off by default because each save hitches the game a little
+let autoOn = false; try { autoOn = localStorage.getItem("wboy-autosave") === "on"; } catch (e) {}
+const showAuto = () => { $("tAuto").textContent = autoOn ? "자동 저장 켜짐" : "자동 저장 꺼짐"; $("tAuto").setAttribute("aria-pressed", autoOn); };
+$("tAuto").onclick = () => { autoOn = !autoOn; try { localStorage.setItem("wboy-autosave", autoOn ? "on" : "off"); } catch (e) {} tas("autosave", autoOn ? "1" : "0"); showAuto(); };
+showAuto();
 // going back also clears the held keys (user 11-06: "전상태로 돌리면 키도 지워져야")
 const goBack = () => { document.querySelectorAll("#tas input[data-k]").forEach(x => x.checked = false); tas("back"); };
 $("tBack").onclick = goBack;

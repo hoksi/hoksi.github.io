@@ -32,6 +32,7 @@ local undo, undoN = {}, 0
 -- reused in turn, newest last); "rewind" loads the newest one before the current frame (one second back each press)
 local autos, autoN, AUTO_EVERY, AUTO_KEEP = {}, 0, 180, 30   -- every 3 s (1 s hitched: user 11-06 "1초는 너무 끊기는데")
 local autoPending = false
+local autoOn = false              -- off by default, the page turns it on (user 11-06: hitches, so a switch)
 local autoplay = false            -- resume right after a load (the editor's replay from a slot)
 HASH = nil       -- set to {} to log a RAM hash per frame (replay check, 11-06)
 local slotRec = {}                  -- slot name -> {rec = record up to its frame, base = recBase} (saved in this session)
@@ -78,7 +79,7 @@ local function newFrame()
      for a = 0xC000, 0xCFFF, 1 do h = (h * 31 + sp:read_u8(a)) % 2147483647 end; HASH[frame] = h end
   if play and frame == playEnd then emu.pause(); msg = "playdone"; tas = true; hold = "-" end
   if target and frame >= target then target = nil; emu.pause() end
-  if frame % AUTO_EVERY == 0 and not manager.machine.paused then autoPending = true end
+  if autoOn and frame % AUTO_EVERY == 0 and not manager.machine.paused then autoPending = true end
   decide(frame + 1)
 end
 -- machine:save() resumes the machine (MAME clears timers first): pause again right at the save
@@ -184,6 +185,7 @@ emu.register_periodic(function()
         end
         if best then dropAutos(nil); loading = best; autoplay = true; manager.machine:load("tas_" .. best); target = nil; msg = "playfrom"
         else play = nil; playEnd = 0; msg = "noslot" end
+      elseif op == "autosave" then autoOn = (a == "1")
       elseif op == "mute" then manager.machine.sound.system_mute = (a == "1")   -- sound on/off (11-06), no effect on the game
       elseif op == "dump" then dump(); msg = "dumped"
       end
