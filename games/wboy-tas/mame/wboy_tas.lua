@@ -144,9 +144,9 @@ emu.register_periodic(function()
         if probe then probe:close(); play = nil; playEnd = 0; loading = a; manager.machine:load("tas_" .. a); target = nil; msg = "load"
         else msg = "empty" end
       elseif op == "dumph" and HASH then local fh2 = io.open("tas/hash.txt", "w"); for i = 1, frame do fh2:write(i, " ", HASH[i] or "?", " ", rec[i] or "?", "\n") end; fh2:close(); msg = "dumpedh"
-      elseif op == "back" then
+      elseif op == "back" then   -- held keys are cleared too (user 11-06: "전상태로 돌리면 키도 지워져야")
         if #undo == 0 then msg = "noundo"
-        else local name = table.remove(undo); play = nil; playEnd = 0; loading = name; manager.machine:load("tas_" .. name); target = nil; msg = "back" end
+        else local name = table.remove(undo); play = nil; playEnd = 0; hold = "-"; loading = name; manager.machine:load("tas_" .. name); target = nil; msg = "back" end
       elseif op == "playfrom" then
         readPlay()
         local best, bf = nil, -1

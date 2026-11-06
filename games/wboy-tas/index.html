@@ -294,7 +294,9 @@ function tasPoll() {
 $("tPause").onclick = () => tas("pause");
 $("tRun").onclick = () => tas("run");
 $("tFree").onclick = () => tas("free");
-$("tBack").onclick = () => tas("back");      // back to where the last step / tap started (up to 10)
+// going back also clears the held keys (user 11-06: "전상태로 돌리면 키도 지워져야")
+const goBack = () => { document.querySelectorAll("#tas input[data-k]").forEach(x => x.checked = false); tas("back"); };
+$("tBack").onclick = goBack;      // back to where the last step / tap started (up to 10)
 document.querySelectorAll("#tas [data-step]").forEach(bt => bt.onclick = () => tas("step", bt.dataset.step, tasKeys()));
 document.querySelectorAll("#tas [data-tap]").forEach(bt => bt.onclick = () => tas("tap", bt.dataset.tap));
 document.querySelectorAll("#tas input[data-k]").forEach(x => x.onchange = () => tas("hold", tasKeys()));
@@ -449,7 +451,7 @@ window.addEventListener("keydown", e => {
   else if (!paused) hit = false;
   else if (e.key === "." || e.key === ">") tas("step", e.shiftKey ? "10" : "1", tasKeys());
   else if (e.key === "/" || e.key === "?") tas("step", "60", tasKeys());
-  else if (e.key === "," || e.key === "<") tas("back");
+  else if (e.key === "," || e.key === "<") goBack();
   else if (e.code === "KeyK") tas("tap", "K");
   else if (e.code === "KeyJ") tas("tap", "J");
   else if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const cb = document.querySelector(`#tas input[data-k="${e.key === "ArrowLeft" ? "L" : "R"}"]`); cb.checked = !cb.checked; tas("hold", tasKeys()); }
