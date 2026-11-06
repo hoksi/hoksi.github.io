@@ -30,7 +30,7 @@ local tapFrame, tapKey = nil, ""   -- "tap": a key pressed for exactly one frame
 local undo, undoN = {}, 0
 -- autosave (11-06, user: "60 프레임당 자동 저장" -> "넣어줘"): while the game runs, every 60th frame is saved (a0..a29,
 -- reused in turn, newest last); "rewind" loads the newest one before the current frame (one second back each press)
-local autos, autoN, AUTO_EVERY, AUTO_KEEP = {}, 0, 60, 30
+local autos, autoN, AUTO_EVERY, AUTO_KEEP = {}, 0, 180, 30   -- every 3 s (1 s hitched: user 11-06 "1초는 너무 끊기는데")
 local autoPending = false
 local autoplay = false            -- resume right after a load (the editor's replay from a slot)
 HASH = nil       -- set to {} to log a RAM hash per frame (replay check, 11-06)

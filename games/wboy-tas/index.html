@@ -86,7 +86,7 @@
         <span class="badge" id="tasState">-</span>
         <button id="tPause" title="Space">⏸ 멈춤</button><button id="tRun" title="Space">▶ 계속</button>
         <button id="tBack" title=",">↶ 뒤로 <span id="undoN">0</span></button>
-        <button id="tRewind" title="Shift + ,">⏪ 1초 전 <span id="autoN">0</span></button>
+        <button id="tRewind" title="Shift + ,">⏪ 3초 전 <span id="autoN">0</span></button>
         <span class="sep"></span>
         <button data-step="1" title=".">+1</button><button data-step="10" title="Shift + .">+10</button><button data-step="60" title="/">+60</button>
         <span class="sep"></span>
@@ -104,7 +104,7 @@
         <button id="tSound" title="소리 켜기/끄기">🔊 소리</button>
       </div>
       <p class="cap" id="recNote"></p>
-      <p class="cap">단축키(멈춤 중): Space 멈춤/계속 · <b>.</b> +1 · Shift+<b>.</b> +10 · <b>/</b> +60 · <b>,</b> 뒤로 · Shift+<b>,</b> 1초 전 · K 점프 1번 · J 도끼 1번 · ← → 누른 채로 켜기/끄기</p>
+      <p class="cap">단축키(멈춤 중): Space 멈춤/계속 · <b>.</b> +1 · Shift+<b>.</b> +10 · <b>/</b> +60 · <b>,</b> 뒤로 · Shift+<b>,</b> 3초 전 · K 점프 1번 · J 도끼 1번 · ← → 누른 채로 켜기/끄기</p>
     </div>
   </div>
   <div class="panel">
@@ -309,7 +309,7 @@ showSound();
 // going back also clears the held keys (user 11-06: "전상태로 돌리면 키도 지워져야")
 const goBack = () => { document.querySelectorAll("#tas input[data-k]").forEach(x => x.checked = false); tas("back"); };
 $("tBack").onclick = goBack;
-// one second back each press, from the autosaves made every 60 frames while the game runs (up to 30)
+// three seconds back each press, from the autosaves made every 180 frames while the game runs (up to 30)
 const goRewind = () => { document.querySelectorAll("#tas input[data-k]").forEach(x => x.checked = false); tas("rewind"); };
 $("tRewind").onclick = goRewind;      // back to where the last step / tap started (up to 10)
 document.querySelectorAll("#tas [data-step]").forEach(bt => bt.onclick = () => tas("step", bt.dataset.step, tasKeys()));
