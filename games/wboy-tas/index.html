@@ -86,6 +86,7 @@
         <span class="badge" id="tasState">-</span>
         <button id="tPause" title="Space">⏸ 멈춤</button><button id="tRun" title="Space">▶ 계속</button>
         <button id="tBack" title=",">↶ 뒤로 <span id="undoN">0</span></button>
+        <button id="tRewind" title="Shift + ,">⏪ 1초 전 <span id="autoN">0</span></button>
         <span class="sep"></span>
         <button data-step="1" title=".">+1</button><button data-step="10" title="Shift + .">+10</button><button data-step="60" title="/">+60</button>
         <span class="sep"></span>
@@ -103,7 +104,7 @@
         <button id="tSound" title="소리 켜기/끄기">🔊 소리</button>
       </div>
       <p class="cap" id="recNote"></p>
-      <p class="cap">단축키(멈춤 중): Space 멈춤/계속 · <b>.</b> +1 · Shift+<b>.</b> +10 · <b>/</b> +60 · <b>,</b> 뒤로 · K 점프 1번 · J 도끼 1번 · ← → 누른 채로 켜기/끄기</p>
+      <p class="cap">단축키(멈춤 중): Space 멈춤/계속 · <b>.</b> +1 · Shift+<b>.</b> +10 · <b>/</b> +60 · <b>,</b> 뒤로 · Shift+<b>,</b> 1초 전 · K 점프 1번 · J 도끼 1번 · ← → 누른 채로 켜기/끄기</p>
     </div>
   </div>
   <div class="panel">
@@ -284,7 +285,8 @@ const tasKeys = () => [...document.querySelectorAll("#tas input[data-k]")].filte
 function tasPoll() {
   setInterval(() => {
     let t = ""; try { t = FS.readFile("/tas/out", { encoding: "utf8" }); } catch (e) { return; }
-    const [frame, state, mode, hold, msg, base, playEnd, ack, undoN] = t.split(" ");
+    const [frame, state, mode, hold, msg, base, playEnd, ack, undoN, autoN] = t.split(" ");
+    $("autoN").textContent = autoN || 0; $("tRewind").disabled = !+autoN;
     $("undoN").textContent = undoN || 0; $("tBack").disabled = !+undoN;
     const how = mode === "play" ? `재생 ${frame}/${playEnd}` : mode === "tas" ? "TAS 입력 " + hold : "키보드";
     $("tasState").textContent = `${frame}프레임 · ${state === "paused" ? "멈춤" : "진행"} · ${how}` + (msg === "empty" ? " · 빈 슬롯" : "") + (msg === "playdone" ? " · 재생 끝" : "") + (msg === "noundo" ? " · 더 뒤로 못 가요" : "");
@@ -306,7 +308,10 @@ for (const t of ["pointerdown", "keydown"]) window.addEventListener(t, resumeAud
 showSound();
 // going back also clears the held keys (user 11-06: "전상태로 돌리면 키도 지워져야")
 const goBack = () => { document.querySelectorAll("#tas input[data-k]").forEach(x => x.checked = false); tas("back"); };
-$("tBack").onclick = goBack;      // back to where the last step / tap started (up to 10)
+$("tBack").onclick = goBack;
+// one second back each press, from the autosaves made every 60 frames while the game runs (up to 30)
+const goRewind = () => { document.querySelectorAll("#tas input[data-k]").forEach(x => x.checked = false); tas("rewind"); };
+$("tRewind").onclick = goRewind;      // back to where the last step / tap started (up to 10)
 document.querySelectorAll("#tas [data-step]").forEach(bt => bt.onclick = () => tas("step", bt.dataset.step, tasKeys()));
 document.querySelectorAll("#tas [data-tap]").forEach(bt => bt.onclick = () => tas("tap", bt.dataset.tap));
 document.querySelectorAll("#tas input[data-k]").forEach(x => x.onchange = () => tas("hold", tasKeys()));
@@ -461,7 +466,8 @@ window.addEventListener("keydown", e => {
   else if (!paused) hit = false;
   else if (e.key === "." || e.key === ">") tas("step", e.shiftKey ? "10" : "1", tasKeys());
   else if (e.key === "/" || e.key === "?") tas("step", "60", tasKeys());
-  else if (e.key === "," || e.key === "<") goBack();
+  else if (e.key === "<" || (e.key === "," && e.shiftKey)) goRewind();
+  else if (e.key === ",") goBack();
   else if (e.code === "KeyK") tas("tap", "K");
   else if (e.code === "KeyJ") tas("tap", "J");
   else if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const cb = document.querySelector(`#tas input[data-k="${e.key === "ArrowLeft" ? "L" : "R"}"]`); cb.checked = !cb.checked; tas("hold", tasKeys()); }

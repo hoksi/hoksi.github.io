@@ -28,6 +28,10 @@ local tapFrame, tapKey = nil, ""   -- "tap": a key pressed for exactly one frame
 -- undo (11-06, user: "1,10,60 프레임 버튼을 누르는 순간 저장하고 최대 10번까지 뒤로"): every step / tap saves the state
 -- it starts from (states u0..u9, reused in turn); "back" loads the newest and drops it
 local undo, undoN = {}, 0
+-- autosave (11-06, user: "60 프레임당 자동 저장" -> "넣어줘"): while the game runs, every 60th frame is saved (a0..a29,
+-- reused in turn, newest last); "rewind" loads the newest one before the current frame (one second back each press)
+local autos, autoN, AUTO_EVERY, AUTO_KEEP = {}, 0, 60, 30
+local autoPending = false
 local autoplay = false            -- resume right after a load (the editor's replay from a slot)
 HASH = nil       -- set to {} to log a RAM hash per frame (replay check, 11-06)
 local slotRec = {}                  -- slot name -> {rec = record up to its frame, base = recBase} (saved in this session)
@@ -56,7 +60,7 @@ end
 local function out()
   local fh = io.open("tas/out", "w"); if not fh then return end
   local mode = (play and frame < playEnd) and "play" or (tas and "tas" or "free")
-  fh:write(string.format("%d %s %s %s %s %d %d %s %d", frame, manager.machine.paused and "paused" or "running", mode, hold, msg, recBase, playEnd, last or "0", #undo))
+  fh:write(string.format("%d %s %s %s %s %d %d %s %d %d", frame, manager.machine.paused and "paused" or "running", mode, hold, msg, recBase, playEnd, last or "0", #undo, #autos))
   fh:close()
 end
 
@@ -74,6 +78,7 @@ local function newFrame()
      for a = 0xC000, 0xCFFF, 1 do h = (h * 31 + sp:read_u8(a)) % 2147483647 end; HASH[frame] = h end
   if play and frame == playEnd then emu.pause(); msg = "playdone"; tas = true; hold = "-" end
   if target and frame >= target then target = nil; emu.pause() end
+  if frame % AUTO_EVERY == 0 and not manager.machine.paused then autoPending = true end
   decide(frame + 1)
 end
 -- machine:save() resumes the machine (MAME clears timers first): pause again right at the save
@@ -123,8 +128,22 @@ local function pushUndo()
   manager.machine:save("tas_" .. name)           -- done before the step runs (start of the next timeslice)
 end
 
+local function autoSave()
+  local name = "a" .. (autoN % AUTO_KEEP); autoN = autoN + 1
+  for i = #autos, 1, -1 do if autos[i] == name then table.remove(autos, i) end end
+  local r = copy(rec); r[frame + 1] = nil
+  slotRec[name] = { rec = r, base = recBase, frame = frame }
+  table.insert(autos, name)
+  manager.machine:save("tas_" .. name)
+end
+-- after a load: autosaves later than the loaded frame are a future that no longer happens; a slot / file / editor load
+-- may come from another path, so it clears them all
+local function dropAutos(f)
+  for i = #autos, 1, -1 do local sr = slotRec[autos[i]]; if (not f) or (not sr) or sr.frame > f then table.remove(autos, i) end end
+end
 emu.register_periodic(function()
   newFrame()
+  if autoPending then autoPending = false; if not manager.machine.paused then autoSave() end end
   local fh = io.open("tas/cmd", "r")
   if fh then
     local line = fh:read("*l") or ""; fh:close()
@@ -141,12 +160,18 @@ emu.register_periodic(function()
       elseif op == "load" or op == "upload" then
         if op == "upload" then slotRec[a] = nil end    -- the page wrote sta/wboy/tas_<a>.sta from a file
         local probe = io.open("sta/wboy/tas_" .. a .. ".sta", "r")
-        if probe then probe:close(); play = nil; playEnd = 0; loading = a; manager.machine:load("tas_" .. a); target = nil; msg = "load"
+        if probe then probe:close(); dropAutos(nil); play = nil; playEnd = 0; loading = a; manager.machine:load("tas_" .. a); target = nil; msg = "load"
         else msg = "empty" end
       elseif op == "dumph" and HASH then local fh2 = io.open("tas/hash.txt", "w"); for i = 1, frame do fh2:write(i, " ", HASH[i] or "?", " ", rec[i] or "?", "\n") end; fh2:close(); msg = "dumpedh"
+      elseif op == "rewind" then
+        local name = nil
+        for i = #autos, 1, -1 do local sr = slotRec[autos[i]]; if sr and sr.frame < frame then name = autos[i]; break end end
+        if not name then msg = "norewind"
+        else dropAutos(slotRec[name].frame)            -- the later ones are an abandoned future; this one stays (next press: one more back)
+          play = nil; playEnd = 0; hold = "-"; loading = name; manager.machine:load("tas_" .. name); target = nil; msg = "rewind" end
       elseif op == "back" then   -- held keys are cleared too (user 11-06: "전상태로 돌리면 키도 지워져야")
         if #undo == 0 then msg = "noundo"
-        else local name = table.remove(undo); play = nil; playEnd = 0; hold = "-"; loading = name; manager.machine:load("tas_" .. name); target = nil; msg = "back" end
+        else local name = table.remove(undo); dropAutos(slotRec[name] and slotRec[name].frame); play = nil; playEnd = 0; hold = "-"; loading = name; manager.machine:load("tas_" .. name); target = nil; msg = "back" end
       elseif op == "playfrom" then
         readPlay()
         local best, bf = nil, -1
@@ -157,7 +182,7 @@ emu.register_periodic(function()
             if same then best, bf = name, sr.frame end
           end
         end
-        if best then loading = best; autoplay = true; manager.machine:load("tas_" .. best); target = nil; msg = "playfrom"
+        if best then dropAutos(nil); loading = best; autoplay = true; manager.machine:load("tas_" .. best); target = nil; msg = "playfrom"
         else play = nil; playEnd = 0; msg = "noslot" end
       elseif op == "mute" then manager.machine.sound.system_mute = (a == "1")   -- sound on/off (11-06), no effect on the game
       elseif op == "dump" then dump(); msg = "dumped"
