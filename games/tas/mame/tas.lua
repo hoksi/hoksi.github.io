@@ -1,4 +1,4 @@
--- 원더보이 TAS (2026-11-06). Loaded by wboy.ko.html with -autoboot_script.
+-- Arcade TAS (2026-11-06; Wonder Boy first, Twin Cobra the same day). Loaded by wboy.ko.html with -autoboot_script.
 -- 1단계 (user: "TAS 1단계 진행"): pause, frame steps, save slots.
 -- 2단계 (user: "슬롯 내려 받기/올리기 기능과 입력 기록 기능 구현"): every frame's input is recorded from power-on,
 -- a loaded slot cuts the record back to its frame (so the record is always the way to the current state), the record
@@ -11,19 +11,37 @@
 -- All six inputs are always set by this script (field overrides): in "free" mode from the keyboard (A D J K 5 1),
 -- in "tas" mode from the held keys. What is set when frame n has finished is what the game reads in frame n+1,
 -- the same path in both modes, so a record replays exactly.
+-- the game's inputs (11-06, multi-game): tas/game.txt lines "LETTER|port|field|KEYCODE_x" written by the page;
+-- without it, Wonder Boy's
 local P = manager.machine.ioport.ports
-local F = { L = P[":P1"].fields["P1 Left"], R = P[":P1"].fields["P1 Right"],
-            J = P[":P1"].fields["P1 Button 1"], K = P[":P1"].fields["P1 Button 2"],
-            C = P[":SYSTEM"].fields["Coin 1"], S = P[":SYSTEM"].fields["1 Player Start"] }
-local ORDER = { "L", "R", "J", "K", "C", "S" }
+local F, ORDER, KB = {}, {}, {}
 local input = manager.machine.input
-local KB = { L = input:code_from_token("KEYCODE_A"), R = input:code_from_token("KEYCODE_D"),
-             J = input:code_from_token("KEYCODE_J"), K = input:code_from_token("KEYCODE_K"),
-             C = input:code_from_token("KEYCODE_5"), S = input:code_from_token("KEYCODE_1") }
+local function addKey(k, port, field, code)
+  local p = P[port]; local f = p and p.fields[field]
+  if f then F[k] = f; table.insert(ORDER, k); KB[k] = input:code_from_token(code) else print("TAS: no input " .. port .. " / " .. field) end
+end
+do
+  local fh = io.open("tas/game.txt", "r")
+  if fh then
+    for line in fh:lines() do
+      local k, port, field, code = line:match("^(%S)|([^|]+)|([^|]+)|(%S+)")
+      if k then addKey(k, port, field, code) end
+      local lo, hi = line:match("^hash%s+(%S+)%s+(%S+)"); if lo then HASHLO, HASHHI = tonumber(lo), tonumber(hi) end
+    end
+    fh:close()
+  else
+    for _, t in ipairs({ { "L", ":P1", "P1 Left", "KEYCODE_A" }, { "R", ":P1", "P1 Right", "KEYCODE_D" }, { "J", ":P1", "P1 Button 1", "KEYCODE_J" },
+                         { "K", ":P1", "P1 Button 2", "KEYCODE_K" }, { "C", ":SYSTEM", "Coin 1", "KEYCODE_5" }, { "S", ":SYSTEM", "1 Player Start", "KEYCODE_1" } }) do addKey(t[1], t[2], t[3], t[4]) end
+  end
+end
+local STA = "sta/" .. manager.machine.system.name .. "/"   -- where MAME keeps this set's state files
 local frame, seen, hold, target, tas, last, msg = 0, -1, "-", nil, false, nil, "ready"
 local rec, recBase = {}, 0          -- rec[f] = keys for frame f; recBase > 0 = the record starts at a loaded state
 local play, playEnd = nil, 0        -- record being played back from power-on
 local repause = false
+-- autofire (11-06, user: "자동 연사 기능이 있으면 좋을것 같아"): while autoKey is held (TAS hold or keyboard), it is
+-- pressed only on the first half of every autoPeriod frames; the record keeps what was really pressed, so replays match
+local autoKey, autoPeriod = nil, 0
 local tapFrame, tapKey = nil, ""   -- "tap": a key pressed for exactly one frame (user 11-06: "1번만 입력되도록")
 -- undo (11-06, user: "1,10,60 프레임 버튼을 누르는 순간 저장하고 최대 10번까지 뒤로"): every step / tap saves the state
 -- it starts from (states u0..u9, reused in turn); "back" loads the newest and drops it
@@ -50,6 +68,9 @@ local function decide(f)
   if play and f <= playEnd then k = play[f] or "-"
   elseif tas then k = hold
   else k = keyboard() end
+  if autoKey and autoPeriod > 0 and not (play and f <= playEnd) and k:find(autoKey, 1, true) and (f % autoPeriod) >= autoPeriod // 2 then
+    k = k:gsub(autoKey, ""); if k == "" then k = "-" end
+  end
   if tapFrame == f and not (play and f <= playEnd) then k = (k == "-" and "" or k) .. tapKey end
   for key, field in pairs(F) do field:set_value(k:find(key, 1, true) and 1 or 0) end
   rec[f] = k
@@ -76,7 +97,7 @@ local function newFrame()
   if f == seen then return end
   frame, seen = f, f
   if HASH then local sp = manager.machine.devices[":maincpu"].spaces["program"]; local h = 0
-     for a = 0xC000, 0xCFFF, 1 do h = (h * 31 + sp:read_u8(a)) % 2147483647 end; HASH[frame] = h end
+     for a = (HASHLO or 0xC000), (HASHHI or 0xCFFF), 1 do h = (h * 31 + sp:read_u8(a)) % 2147483647 end; HASH[frame] = h end
   if play and frame == playEnd then emu.pause(); msg = "playdone"; tas = true; hold = "-" end
   if target and frame >= target then target = nil; emu.pause() end
   if autoOn and frame % AUTO_EVERY == 0 and not manager.machine.paused then autoPending = true end
@@ -142,7 +163,13 @@ end
 local function dropAutos(f)
   for i = #autos, 1, -1 do local sr = slotRec[autos[i]]; if (not f) or (not sr) or sr.frame > f then table.remove(autos, i) end end
 end
+-- MAME pops up "Saved state to … / Loaded state …" (and for Twin Cobra a warning) on every save and load; with a save on
+-- every step it covered the bottom of the screen all the time (11-06), so the popup is cleared for a moment after each
+local clearPop = 0
+_tas_presave_pop = emu.add_machine_pre_save_notifier(function() clearPop = 30 end)
+_tas_postload_pop = emu.add_machine_post_load_notifier(function() clearPop = 30 end)
 emu.register_periodic(function()
+  if clearPop > 0 then clearPop = clearPop - 1; manager.machine:popmessage() end
   newFrame()
   if autoPending then autoPending = false; if not manager.machine.paused then autoSave() end end
   local fh = io.open("tas/cmd", "r")
@@ -160,7 +187,7 @@ emu.register_periodic(function()
       elseif op == "save" then repause = manager.machine.paused; cut(frame); slotRec[a] = { rec = copy(rec), base = recBase, frame = frame }; decide(frame + 1); manager.machine:save("tas_" .. a)
       elseif op == "load" or op == "upload" then
         if op == "upload" then slotRec[a] = nil end    -- the page wrote sta/wboy/tas_<a>.sta from a file
-        local probe = io.open("sta/wboy/tas_" .. a .. ".sta", "r")
+        local probe = io.open(STA .. "tas_" .. a .. ".sta", "r")
         if probe then probe:close(); dropAutos(nil); play = nil; playEnd = 0; loading = a; manager.machine:load("tas_" .. a); target = nil; msg = "load"
         else msg = "empty" end
       elseif op == "dumph" and HASH then local fh2 = io.open("tas/hash.txt", "w"); for i = 1, frame do fh2:write(i, " ", HASH[i] or "?", " ", rec[i] or "?", "\n") end; fh2:close(); msg = "dumpedh"
@@ -212,6 +239,7 @@ emu.register_periodic(function()
           fh2:close()
         end
         msg = "restored"
+      elseif op == "autofire" then autoKey = (a ~= "" and a) or nil; autoPeriod = tonumber(b) or 0; decide(frame + 1)
       elseif op == "autosave" then autoOn = (a == "1")
       elseif op == "mute" then manager.machine.sound.system_mute = (a == "1")   -- sound on/off (11-06), no effect on the game
       elseif op == "dump" then dump(); msg = "dumped"

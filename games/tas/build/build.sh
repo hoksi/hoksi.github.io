@@ -1,13 +1,13 @@
 #!/bin/bash
-# Build MAME 0.285 for the browser (WebAssembly) with only the Sega System 1 driver (Wonder Boy).
-# 브라우저용 MAME 0.285 빌드 (세가 시스템 1 드라이버만: 원더보이).
+# Build MAME 0.285 for the browser (WebAssembly) with only one game's driver, for the TAS page.
+# 브라우저용 MAME 0.285 빌드 (게임 하나의 드라이버만, TAS 페이지용).
 #
 # Needs: git, python3, make, and the Emscripten SDK (tested with emcc 6.0.13). No root.
-#   git clone https://github.com/emscripten-core/emsdk.git && ./emsdk/emsdk install latest && ./emsdk/emsdk activate latest
-#   ./build.sh /path/to/emsdk
-# Output: mame-src/wboy.js + wboy.wasm (copy them to ../mame/).
+#   ./build.sh /path/to/emsdk wboy sega/system1.cpp          (Wonder Boy)
+#   ./build.sh /path/to/emsdk twincobr toaplan/twincobr.cpp  (Twin Cobra)
+# Output: mame-src/<name>.js + <name>.wasm (copy them to ../mame/).
 set -e
-EMSDK=${1:?usage: build.sh /path/to/emsdk}
+EMSDK=${1:?usage: build.sh /path/to/emsdk NAME DRIVER}; NAME=${2:?NAME}; DRIVER=${3:?DRIVER}
 HERE=$(cd "$(dirname "$0")" && pwd)
 [ -d "$HERE/mame-src" ] || git clone --depth 1 --branch mame0285 https://github.com/mamedev/mame.git "$HERE/mame-src"
 cd "$HERE/mame-src"
@@ -18,5 +18,5 @@ source "$EMSDK/emsdk_env.sh" >/dev/null
 #    otherwise every C++ exception (MAME throws some during a normal start) aborts the program
 CATCH="['_ZN15running_machine17start_all_devicesEv','_ZN12cli_frontend7executeEiPPc','_ZN8chd_file11open_commonEb','_ZN8chd_file13read_metadataEjjRNSt3__212basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE','_ZN8chd_file13read_metadataEjjRNSt3__26vectorIhNS0_9allocatorIhEEEE','_ZNK19netlist_mame_device19base_validity_checkER16validity_checker']"
 export LDFLAGS="-s EXCEPTION_CATCHING_ALLOWED=\"$CATCH\""
-emmake make SUBTARGET=wboy SOURCES=src/mame/sega/system1.cpp WEBASSEMBLY=1 NOWERROR=1 -j"$(nproc)"
-ls -la wboy.js wboy.wasm
+emmake make SUBTARGET="$NAME" SOURCES="src/mame/$DRIVER" WEBASSEMBLY=1 NOWERROR=1 -j"$(nproc)"
+ls -la "$NAME.js" "$NAME.wasm"
