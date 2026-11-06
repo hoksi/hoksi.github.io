@@ -119,6 +119,13 @@
         <button id="tFire" title="샷을 누른 채로 두면 끊어서 연속으로 쏴요">연사 꺼짐</button>
         <button id="tAuto" title="3초마다 자동 저장 (켜면 손으로 할 때 살짝 끊길 수 있어요)">자동 저장 꺼짐</button>
       </div>
+      <!-- short-stretch helper (11-06, user: "짧은구간 도우미 기능 추가 부탁해"): the Lua script searches the next seconds -->
+      <div class="brow" id="botRow" hidden>
+        <span class="cap">🤖 자동 탐색</span>
+        <button data-bot="120" title="지금부터 게임 시간 2초를 자동으로 찾아요">2초</button><button data-bot="300">5초</button><button data-bot="600">10초</button>
+        <button id="tBotStop" disabled>■ 그만</button>
+        <span class="slotst" id="botSt" title="20프레임마다 9방향을 1초씩 미리 해 보고, 안 맞으면서 점수가 가장 높은 쪽으로 가요. 다 맞으면 폭탄도 써 봐요. 게임 1초를 찾는 데 30초쯤 걸려요(컴퓨터에 따라 달라요).">게임 1초에 30초쯤 걸려요</span>
+      </div>
       <p class="cap" id="recNote"></p>
       <p class="cap">단축키(멈춤 중): Space 멈춤/계속 · <b>.</b> +1 · Shift+<b>.</b> +10 · <b>/</b> +60 · <b>,</b> 뒤로 · Shift+<b>,</b> 3초 전 · <span id="tapHelp"></span> · 방향키 누른 채로 켜기/끄기</p>
     </div>
@@ -209,6 +216,8 @@ const GAMES = {
     keys: [["L", "←", ":P1", "P1 Left", "A"], ["R", "→", ":P1", "P1 Right", "D"], ["U", "↑", ":P1", "P1 Up", "W"], ["D", "↓", ":P1", "P1 Down", "S"],
       ["J", "샷", ":P1", "P1 Button 1", "J"], ["K", "폭탄", ":P1", "P1 Button 2", "K"], ["C", "동전", ":SYSTEM", "Coin 1", "5"], ["S", "시작", ":SYSTEM", "1 Player Start", "1"]],
     taps: [["J", "샷 1번"], ["K", "폭탄 1번"]],
+    // memory for the helper (found 11-06): score = BCD long at 0x3184C in tens, hit = byte 0x30023 becomes 20
+    bot: ["score 0x3184C bcd32 10", "hit 0x30023 20", "fire J", "bomb K", "dirs - L R U D LU RU LD RD"],
     keysHelp: "<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 · <kbd>J</kbd> 샷 · <kbd>K</kbd> 폭탄 · <kbd>5</kbd> 동전 · <kbd>1</kbd> 시작" },
 };
 const G = new URLSearchParams(location.search).get("game") in GAMES ? new URLSearchParams(location.search).get("game") : (window.DEFAULT_GAME || "wboy");
@@ -231,7 +240,7 @@ $("tapHelp").textContent = GAME.taps.map(([k, n]) => `${k} ${n}`).join(" · ");
   $("holdBtns").innerHTML = GAME.keys.filter(([k]) => !"LRUDCS".includes(k)).map(([k, n]) => chip(k, n, "btn")).join("");
 }
 // handed to the Lua script (tas/game.txt): letter|port|field|keyboard key
-const GAMECFG = GAME.keys.map(([k, , port, field, key]) => `${k}|${port}|${field}|KEYCODE_${key}`).join("\n") + `\nhash ${GAME.hash}\n`;
+const GAMECFG = GAME.keys.map(([k, , port, field, key]) => `${k}|${port}|${field}|KEYCODE_${key}`).join("\n") + `\nhash ${GAME.hash}\n` + (GAME.bot || []).map(l => `bot ${l}\n`).join("");
 
 const log = t => { const el = $("log"); el.textContent = (t + "\n" + el.textContent).slice(0, 4000); };
 function setStatus(kind, text) { const b = $("status"); b.className = "badge " + kind; b.textContent = text; }
@@ -356,8 +365,27 @@ function tasPoll() {
     $("tasState").textContent = `${frame}프레임 · ${state === "paused" ? "멈춤" : "진행"} · ${how}` + (msg === "empty" ? " · 빈 슬롯" : "") + (msg === "playdone" ? " · 재생 끝" : "") + (msg === "noundo" ? " · 더 뒤로 못 가요" : "");
     $("recNote").textContent = +base ? `입력 기록: ${base}프레임(올린 슬롯)부터 ${frame - base}프레임. 전원부터 재생하려면 처음부터 기록해야 해요.` : `입력 기록: 전원 켠 순간부터 ${frame}프레임`;
     window.__TAS = { frame: +frame, state, mode, hold, msg, base: +base, playEnd: +playEnd, ack: +ack };
+    if (GAME.bot) showBot(msg);
     if (state === "paused") setStatus("wait", "TAS · 멈춤"); else setStatus("live", mode === "tas" ? "TAS · 진행 중" : "실시간 · 지금 직접 플레이 중");
   }, 100);
+}
+// the helper's state from the Lua message: "bot<done>/<total>" while it runs, then botdone / botstuck / botstop
+let botRunning = false;
+function showBot(msg) {
+  const m = /^bot(\d+)\/(\d+)$/.exec(msg || "");
+  botRunning = !!m;
+  $("tBotStop").disabled = !m;
+  document.querySelectorAll("[data-bot]").forEach(b => b.disabled = !!m);
+  if (m) $("botSt").textContent = `찾는 중 ${m[1]}/${m[2]}프레임`;
+  else if (msg === "botdone") $("botSt").textContent = "끝 · 멈춤 (뒤로: 자동 탐색 전으로)";
+  else if (msg === "botstuck") $("botSt").textContent = "어떻게 해도 맞아요 · 맞기 직전에 멈춤";
+  else if (msg === "botstop") $("botSt").textContent = "그만둠 · 멈춤";
+  else if (msg === "boterror") $("botSt").textContent = "오류로 멈춤";
+}
+if (GAME.bot) {
+  $("botRow").hidden = false;
+  document.querySelectorAll("[data-bot]").forEach(b => b.onclick = () => { if (!botRunning) { tas("bot", b.dataset.bot); log(`자동 탐색 ${b.textContent} 시작`); } });
+  $("tBotStop").onclick = () => tas("botstop");
 }
 $("tPause").onclick = () => tas("pause");
 $("tRun").onclick = () => tas("run");

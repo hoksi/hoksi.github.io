@@ -27,6 +27,7 @@ do
       local k, port, field, code = line:match("^(%S)|([^|]+)|([^|]+)|(%S+)")
       if k then addKey(k, port, field, code) end
       local lo, hi = line:match("^hash%s+(%S+)%s+(%S+)"); if lo then HASHLO, HASHHI = tonumber(lo), tonumber(hi) end
+      local bk, bv = line:match("^bot%s+(%S+)%s*(.*)$"); if bk then BOTCFG = BOTCFG or {}; BOTCFG[bk] = bv end
     end
     fh:close()
   else
@@ -101,6 +102,7 @@ local function newFrame()
   if play and frame == playEnd then emu.pause(); msg = "playdone"; tas = true; hold = "-" end
   if target and frame >= target then target = nil; emu.pause() end
   if autoOn and frame % AUTO_EVERY == 0 and not manager.machine.paused then autoPending = true end
+  if botHit and not botHitAt and botHit() then botHitAt = frame end
   decide(frame + 1)
 end
 -- machine:save() resumes the machine (MAME clears timers first): pause again right at the save
@@ -165,6 +167,111 @@ local function dropAutos(f)
 end
 -- MAME pops up "Saved state to … / Loaded state …" (and for Twin Cobra a warning) on every save and load; with a save on
 -- every step it covered the bottom of the screen all the time (11-06), so the popup is cleared for a moment after each
+
+-- ---- short-stretch helper (11-06, user: "짧은구간 도우미 기능 추가 부탁해"): the server bot (bot.lua, which made the
+-- 18,017-frame Twin Cobra run) moved in here. "bot N" searches the next N frames: every SEG frames the state is saved,
+-- each direction is tried for SEG+LOOK frames with the shot autofired, and the one with no hit and the best score is
+-- kept for SEG frames; when every direction is hit a bomb is tried too. If even that is hit, it stops before it
+-- ("botstuck") so a person can take over. Game memory comes from tas/game.txt ("bot score ADDR bcd32 MULT",
+-- "bot hit ADDR VALUE", "bot fire KEY", "bot bomb KEY", "bot dirs - L R ..."); without it there is no helper.
+botHit, botHitAt = nil, nil
+local botStop, botTotal = false, 0
+botActive = false
+local BOT = nil
+if BOTCFG and BOTCFG.score and BOTCFG.hit then
+  local sp = manager.machine.devices[":maincpu"].spaces["program"]
+  local sa, sk, sm = BOTCFG.score:match("^(%S+)%s+(%S+)%s*(%S*)")
+  local ha, hv = BOTCFG.hit:match("^(%S+)%s+(%S+)")
+  sa, sm, ha, hv = tonumber(sa), tonumber(sm) or 1, tonumber(ha), tonumber(hv)
+  local function bcd(v) local n, m = 0, 1; while v > 0 do n = n + (v % 16) * m; v = v // 16; m = m * 10 end; return n end
+  BOT = { seg = 20, look = 40, fire = BOTCFG.fire, bomb = BOTCFG.bomb, dirs = {},
+    score = function() local v = sp:read_u32(sa); return (sk == "bcd32" and bcd(v) or v) * sm end,
+    hit = function() return sp:read_u8(ha) == hv end }
+  for d in (BOTCFG.dirs or "-"):gmatch("%S+") do table.insert(BOT.dirs, d == "-" and "" or d) end
+end
+-- no Lua coroutines here: in the browser build a coroutine.resume from the periodic hook froze the whole emulator
+-- (11-06; fine natively), so the helper is a chain of steps: each step starts something and names the condition to
+-- wait for (checked once per periodic call) and the step after it
+local B = {}
+local function after(cond, fn) B.cond, B.next = cond, fn end
+local function calls(n) local c = 0; return function() c = c + 1; return c > n end end
+local function isPaused() return manager.machine.paused end
+local function botSave(name, fn)
+  cut(frame); slotRec[name] = { rec = copy(rec), base = recBase, frame = frame }; decide(frame + 1)
+  repause = true; manager.machine:save("tas_" .. name)
+  after(calls(2), function() emu.pause(); after(isPaused, fn) end)
+end
+local function botLoad(name, fn)
+  play = nil; playEnd = 0; loading = name; manager.machine:load("tas_" .. name); target = nil
+  after(calls(2), function() after(isPaused, fn) end)
+end
+-- hold `keys` (+ the shot) for n frames from the pause, then fn(frame of the first hit or nil, score)
+local function botRun(keys, n, fn)
+  local f0 = frame; botHitAt = nil
+  tas = true; hold = keys .. (BOT.fire or ""); if hold == "" then hold = "-" end
+  decide(frame + 1); target = frame + n; emu.unpause()
+  after(function() return manager.machine.paused and frame >= f0 + n end, function() fn(botHitAt, BOT.score()) end)
+end
+local function botMain(total)
+  local v = manager.machine.video
+  local keep = { ak = autoKey, ap = autoPeriod, mute = manager.machine.sound.system_mute }
+  pcall(function() keep.thr = v.throttled; keep.fs = v.frameskip end)
+  botHit = BOT.hit; autoKey, autoPeriod = BOT.fire, 2
+  local fEnd, k, base, f0 = frame + total, 0, nil, nil
+  local cands, idx, best, bestv, bestBomb, bombTried
+  local seg, try, choose, finish
+  function finish(result)
+    pcall(function() v.throttled = keep.thr; v.frameskip = keep.fs end); manager.machine.sound.system_mute = keep.mute
+    autoKey, autoPeriod = keep.ak, keep.ap; botHit = nil
+    tas = true; hold = "-"; decide(frame + 1); emu.pause()
+    slotRec["bot0"], slotRec["bot1"] = nil, nil
+    msg = result; botActive = false; B.next = nil
+  end
+  function seg()
+    if botStop then return finish("botstop") end
+    if frame >= fEnd then return finish("botdone") end
+    k = k + 1; base = "bot" .. (k % 2)
+    botSave(base, function()
+      f0 = frame; cands = {}; for _, d in ipairs(BOT.dirs) do cands[#cands + 1] = { d } end
+      idx, best, bestv, bestBomb, bombTried = 0, "", -1e9, nil, false
+      try()
+    end)
+  end
+  function try()
+    idx = idx + 1
+    if botStop or idx > #cands then return choose() end
+    local c = cands[idx]
+    botLoad(base, function()
+      if c[2] then tapFrame = frame + 1; tapKey = c[2] end
+      botRun(c[1], BOT.seg + BOT.look, function(hitAt, sc)
+        local val = hitAt and (-1e6 + (hitAt - f0)) or sc
+        if val > bestv then best, bestv, bestBomb = c[1], val, c[2] end
+        try()
+      end)
+    end)
+  end
+  function choose()
+    if bestv < 0 and BOT.bomb and not bombTried and not botStop then   -- every direction is hit: try a bomb too
+      bombTried = true; cands = {}; for _, d in ipairs(BOT.dirs) do cands[#cands + 1] = { d, BOT.bomb } end; idx = 0
+      return try()
+    end
+    botLoad(base, function()
+      if botStop then return finish("botstop") end
+      if bestv < 0 then return finish("botstuck") end    -- every try is hit: stop here, before it
+      if bestBomb then tapFrame = frame + 1; tapKey = bestBomb end
+      botRun(best, math.min(BOT.seg, fEnd - frame), function()
+        msg = "bot" .. (frame - (fEnd - total)) .. "/" .. total
+        seg()
+      end)
+    end)
+  end
+  -- first an undo point ("뒤로" goes back to before the helper), then run unthrottled and silent
+  repause = true; pushUndo()
+  after(calls(2), function() emu.pause(); after(isPaused, function()
+    pcall(function() v.throttled = false; v.frameskip = 10 end); manager.machine.sound.system_mute = true
+    seg()
+  end) end)
+end
 local clearPop = 0
 _tas_presave_pop = emu.add_machine_pre_save_notifier(function() clearPop = 30 end)
 _tas_postload_pop = emu.add_machine_post_load_notifier(function() clearPop = 30 end)
@@ -172,13 +279,23 @@ emu.register_periodic(function()
   if clearPop > 0 then clearPop = clearPop - 1; manager.machine:popmessage() end
   newFrame()
   if autoPending then autoPending = false; if not manager.machine.paused then autoSave() end end
+  if botActive and B.next and B.cond() then
+    local fn = B.next; B.next = nil
+    local ok, err = pcall(fn)
+    if not ok then print("TAS bot: " .. tostring(err)); msg = "boterror"; botActive = false; B.next = nil; emu.pause() end
+  end
   local fh = io.open("tas/cmd", "r")
   if fh then
     local line = fh:read("*l") or ""; fh:close()
     local seq, op, a, b = line:match("^(%S+)%s+(%S+)%s*(%S*)%s*(%S*)")
-    if seq and seq ~= last then
-      last = seq; msg = op
+    if seq and seq ~= last and botActive then         -- while the helper runs, only "botstop" is taken
+      last = seq; if op == "botstop" then botStop = true end
+    elseif seq and seq ~= last then
+      last = seq; if op ~= "botstop" then msg = op end
       if op == "pause" then emu.pause()
+      elseif op == "bot" then
+        if not BOT then msg = "nobot"
+        else botStop = false; botTotal = tonumber(a) or 300; msg = "bot0/" .. botTotal; botActive = true; botMain(botTotal) end
       elseif op == "run" then target = nil; emu.unpause()
       elseif op == "step" then pushUndo(); tas = true; hold = (b ~= "" and b) or hold; decide(frame + 1); target = frame + (tonumber(a) or 1); emu.unpause()
       elseif op == "tap" then pushUndo(); tas = true; tapFrame = frame + 1; tapKey = a; decide(frame + 1); target = frame + 1; emu.unpause()
