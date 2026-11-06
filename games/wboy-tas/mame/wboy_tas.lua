@@ -185,6 +185,33 @@ emu.register_periodic(function()
         end
         if best then dropAutos(nil); loading = best; autoplay = true; manager.machine:load("tas_" .. best); target = nil; msg = "playfrom"
         else play = nil; playEnd = 0; msg = "noslot" end
+      -- slots kept in the browser (11-06, user: "슬롯도 부라우저에 저장해두고"): the page stores the state file plus the
+      -- slot's own input record ("slotrec" writes it), and hands both back after a reload ("restore")
+      elseif op == "slotrec" then
+        local sr = slotRec[a]; local fh2 = io.open("tas/slotrec.txt", "w")
+        if fh2 then
+          if sr then
+            fh2:write(sr.base, " ", sr.frame, "\n")
+            local cur, n = nil, 0
+            for i = sr.base + 1, sr.frame do local k = sr.rec[i] or "-"
+              if k == cur then n = n + 1 else if cur then fh2:write(cur, " ", n, "\n") end; cur, n = k, 1 end end
+            if cur then fh2:write(cur, " ", n, "\n") end
+          else fh2:write("none\n") end
+          fh2:close()
+        end
+        msg = "slotrec"
+      elseif op == "restore" then
+        local fh2 = io.open("tas/slotrec_" .. a .. ".txt", "r")
+        if fh2 then
+          local base, fr = (fh2:read("*l") or ""):match("^(%d+)%s+(%d+)")
+          if base then
+            local r, f = {}, tonumber(base)
+            for line in fh2:lines() do local k, n = line:match("^(%S+)%s+(%d+)"); if k then for _ = 1, tonumber(n) do f = f + 1; r[f] = k end end end
+            slotRec[a] = { rec = r, base = tonumber(base), frame = tonumber(fr) }
+          end
+          fh2:close()
+        end
+        msg = "restored"
       elseif op == "autosave" then autoOn = (a == "1")
       elseif op == "mute" then manager.machine.sound.system_mute = (a == "1")   -- sound on/off (11-06), no effect on the game
       elseif op == "dump" then dump(); msg = "dumped"

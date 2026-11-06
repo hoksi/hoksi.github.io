@@ -46,6 +46,8 @@
   .bar button { padding: 4px 9px; }
   .sep { width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
   #tAuto[aria-pressed="true"] { background: var(--input); border-color: var(--input); color: #000; }
+  .slotst { font-size: .75rem; color: var(--muted); }
+  .slotst.kept { color: var(--gfp); }
   .chip input { display: none; }
   .chip span { display: inline-block; padding: 3px 10px; border-radius: 999px; border: 1px solid #5c7a6a; cursor: pointer; font-weight: 600; user-select: none; }
   .chip input:checked + span { background: var(--input); border-color: var(--input); color: #000; }
@@ -98,8 +100,8 @@
         <label class="chip" title="← (멈춤 중)"><input type="checkbox" data-k="L"><span>←</span></label><label class="chip" title="→ (멈춤 중)"><input type="checkbox" data-k="R"><span>→</span></label>
         <label class="chip"><input type="checkbox" data-k="J"><span>도끼</span></label><label class="chip"><input type="checkbox" data-k="K"><span>점프</span></label>
         <span class="sep"></span>
-        <span class="cap">슬롯 1</span><button data-save="1">저장</button><button data-load="1">불러오기</button>
-        <span class="cap">슬롯 2</span><button data-save="2">저장</button><button data-load="2">불러오기</button>
+        <span class="cap">슬롯 1</span><button data-save="1">저장</button><button data-load="1">불러오기</button><span class="slotst" id="slotSt1">비어 있음</span>
+        <span class="cap">슬롯 2</span><button data-save="2">저장</button><button data-load="2">불러오기</button><span class="slotst" id="slotSt2">비어 있음</span>
         <span class="sep"></span>
         <button id="tFree">손으로 하기</button>
         <button id="tSound" title="소리 켜기/끄기">🔊 소리</button>
@@ -270,6 +272,7 @@ async function startMAME(buf, set) {
         if (romBad) { setStatus("wait", "롬이 맞지 않아요"); $("forgetRom").hidden = false; $("romErr").textContent = "롬 파일이 MAME 0.285의 원더보이와 맞지 않아요(기록 참고). 저장된 롬을 지우고 다른 파일로 해 보세요."; $("romErr").hidden = false; $("drop").hidden = false; return; }
         setStatus("live", "실시간 · 지금 직접 플레이 중");
         $("keys").hidden = false; $("restart").hidden = false; $("forgetRom").hidden = false; $("tas").hidden = false; $("tabs").hidden = false; showTab("lib"); $("editor").hidden = false; tasPoll(); if (PLAYED_EDIT) edOpen(PLAYED_EDIT.frames, PLAYED_EDIT.id, PLAYED_EDIT.first);
+        await restoreSlots();
         if (!soundOn) tas("mute", "1");
         if (autoOn) { await sleep(150); tas("autosave", "1"); await sleep(150); }
         if (!PLAY) await newGame(true); else log("입력 기록 재생 중 (전원 켠 순간부터)");
@@ -341,7 +344,8 @@ document.querySelectorAll("#tas input[data-up]").forEach(inp => inp.onchange = a
   const f = e.target.files[0], n = inp.dataset.up; if (!f) return;
   const buf = new Uint8Array(await f.arrayBuffer());
   for (const d of ["/sta", "/sta/wboy"]) { try { FS.mkdir(d); } catch (err) {} }
-  FS.writeFile(`/sta/wboy/tas_${n}.sta`, buf); tas("upload", n); log(`슬롯 ${n}에 ${f.name} 올리고 불러오기`); e.target.value = "";
+  FS.writeFile(`/sta/wboy/tas_${n}.sta`, buf); await tasDone(tas("upload", n)); log(`슬롯 ${n}에 ${f.name} 올리고 불러오기`); e.target.value = "";
+  await sleep(800); if (DB) { const T = window.__TAS || {}; DB.run("INSERT OR REPLACE INTO live_slots VALUES (?,?,?,?,?,?)", [+n, T.frame, T.frame, "", new Date().toISOString(), buf]); await persist(); showSlot(n); }
 });
 // the input record: "KEYS COUNT" lines from frame 1 (L R J K C S, "-" = none), dumped by the Lua script
 const waitMsg = (m, ms = 3000) => new Promise(res => { const t0 = Date.now(), iv = setInterval(() => { if ((window.__TAS || {}).msg === m || Date.now() - t0 > ms) { clearInterval(iv); res((window.__TAS || {}).msg === m); } }, 50); });
@@ -374,6 +378,7 @@ function playText(text, id) {
 const SCHEMA = `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY, name TEXT, memo TEXT, created TEXT, frames INTEGER,
   start TEXT, parent INTEGER REFERENCES records(id), branch_frame INTEGER, inputs TEXT);
+CREATE TABLE IF NOT EXISTS live_slots (n INTEGER PRIMARY KEY, frame INTEGER, base INTEGER, rec TEXT, saved TEXT, data BLOB);
 CREATE TABLE IF NOT EXISTS slots (id INTEGER PRIMARY KEY, name TEXT, created TEXT, frame INTEGER,
   record INTEGER REFERENCES records(id), data BLOB);`;
 let SQL = null, DB = null;
@@ -449,7 +454,8 @@ document.addEventListener("click", async e => {
   else if (d.s1 || d.s2) {
     const n = d.s1 ? 1 : 2, id = +(d.s1 || d.s2), r = dbq("SELECT data FROM slots WHERE id=?", [id])[0];
     for (const dir of ["/sta", "/sta/wboy"]) { try { FS.mkdir(dir); } catch (err) {} }
-    FS.writeFile(`/sta/wboy/tas_${n}.sta`, r.data); tas("upload", String(n)); log(`보관 슬롯 #${id}을 슬롯 ${n}에 넣고 불러오기`);
+    FS.writeFile(`/sta/wboy/tas_${n}.sta`, r.data); await tasDone(tas("upload", String(n))); log(`보관 슬롯 #${id}을 슬롯 ${n}에 넣고 불러오기`);
+    await sleep(800); { const T = window.__TAS || {}; DB.run("INSERT OR REPLACE INTO live_slots VALUES (?,?,?,?,?,?)", [n, T.frame, T.frame, "", new Date().toISOString(), r.data]); await persist(); showSlot(n); }
   }
   else if (d.sx) { if (!confirm(`보관 슬롯 #${d.sx}을 지울까요?`)) return; DB.run("DELETE FROM slots WHERE id=?", [+d.sx]); await persist(); drawLib(); }
 });
@@ -463,6 +469,40 @@ $("dbUp").onchange = async e => {
 };
 openLib();
 
+// ---- slots 1/2 kept in the browser (2026-11-06, user: "슬롯도 부라우저에 저장해두고 부라우저에 저장 여부를 표시"):
+// after each save (or upload) the state file and the slot's own input record go into the 보관함 .db (table live_slots,
+// IndexedDB); after a reload they are written back and the Lua script gets the record again, so the slot keeps working
+// with the input record (replay from power-on) as before the reload
+function showSlot(n) {
+  const el = $("slotSt" + n); if (!el) return;
+  const r = DB && dbq("SELECT frame, saved FROM live_slots WHERE n=?", [n])[0];
+  el.textContent = r ? `💾 브라우저 저장됨 · ${r.frame}프레임 · ${r.saved.slice(5, 16).replace("T", " ")}` : "브라우저에 없음";
+  el.className = "slotst" + (r ? " kept" : "");
+}
+async function keepSlot(n) {
+  if (!DB) return;
+  const path = `/sta/wboy/tas_${n}.sta`; let before = 0; try { before = FS.stat(path).mtime.getTime(); } catch (e) {}
+  for (let i = 0; i < 60; i++) { try { if (FS.stat(path).mtime.getTime() !== before) break; } catch (e) {} await sleep(50); }
+  await sleep(100);
+  let data; try { data = FS.readFile(path); } catch (e) { return; }
+  if (await tasDone(tas("slotrec", String(n))) !== "slotrec") return;
+  const txt = FS.readFile("/tas/slotrec.txt", { encoding: "utf8" }), m = txt.match(/^(\d+)\s+(\d+)/);
+  const T = window.__TAS || {}, base = m ? +m[1] : T.frame, frame = m ? +m[2] : T.frame, rec = m ? txt.slice(txt.indexOf("\n") + 1) : "";
+  DB.run("INSERT OR REPLACE INTO live_slots VALUES (?,?,?,?,?,?)", [n, frame, base, rec, new Date().toISOString(), data]);
+  await persist(); showSlot(n);
+}
+async function restoreSlots() {
+  if (!DB) return;
+  for (const r of dbq("SELECT n, frame, base, rec, data FROM live_slots")) {
+    for (const d of ["/sta", "/sta/wboy"]) { try { FS.mkdir(d); } catch (e) {} }
+    FS.writeFile(`/sta/wboy/tas_${r.n}.sta`, r.data);
+    FS.writeFile(`/tas/slotrec_${r.n}.txt`, `${r.base} ${r.frame}\n` + (r.rec || ""));
+    await tasDone(tas("restore", String(r.n)));
+    log(`슬롯 ${r.n} 되살림 (${r.frame}프레임)`);
+  }
+  showSlot(1); showSlot(2);
+}
+document.querySelectorAll("#tas [data-save]").forEach(bt => bt.addEventListener("click", () => keepSlot(bt.dataset.save)));
 // ---- tabs and shortcuts (UI tidy-up 2026-11-06)
 function showTab(id) {
   for (const b of document.querySelectorAll("#tabs [data-tab]")) { const on = b.dataset.tab === id; b.setAttribute("aria-pressed", on); $(b.dataset.tab).hidden = !on; }
