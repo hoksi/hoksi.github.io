@@ -100,6 +100,7 @@
         <span class="cap">슬롯 2</span><button data-save="2">저장</button><button data-load="2">불러오기</button>
         <span class="sep"></span>
         <button id="tFree">손으로 하기</button>
+        <button id="tSound" title="소리 켜기/끄기">🔊 소리</button>
       </div>
       <p class="cap" id="recNote"></p>
       <p class="cap">단축키(멈춤 중): Space 멈춤/계속 · <b>.</b> +1 · Shift+<b>.</b> +10 · <b>/</b> +60 · <b>,</b> 뒤로 · K 점프 1번 · J 도끼 1번 · ← → 누른 채로 켜기/끄기</p>
@@ -256,7 +257,7 @@ async function startMAME(buf, set) {
   $("drop").hidden = true; $("waiting").hidden = true; $("canvas").hidden = false;
   setStatus("wait", "게임 켜는 중…"); log(`롬 확인 (${set}), MAME 시작`);
   window.Module = {
-    arguments: [set, "-rompath", "/roms", "-sound", "none", "-skip_gameinfo", "-video", "soft", "-window", "-nomax", "-resolution", "512x224", "-cfg_directory", "/cfg", "-autoboot_script", "/tas/wboy_tas.lua", "-state_directory", "/sta"],
+    arguments: [set, "-rompath", "/roms", "-sound", "sdl", "-skip_gameinfo", "-video", "soft", "-window", "-nomax", "-resolution", "512x224", "-cfg_directory", "/cfg", "-autoboot_script", "/tas/wboy_tas.lua", "-state_directory", "/sta"],
     canvas: $("canvas"),
     preRun: [() => { FS.mkdir("/tas"); FS.writeFile("/tas/wboy_tas.lua", TASLUA); if (PLAY) FS.writeFile("/tas/play.txt", PLAY); FS.mkdir("/cfg"); FS.writeFile("/cfg/default.cfg", KEYCFG); FS.mkdir("/roms"); FS.writeFile(`/roms/${set}.zip`, new Uint8Array(buf)); if (set !== "wboy") FS.writeFile("/roms/wboy.zip", new Uint8Array(buf)); }],
     print: t => console.log(t), printErr: t => { console.log("ERR " + t); if (/NOT FOUND|WRONG CHECKSUMS|required files are missing/.test(t)) { romBad = true; log(t); } }, onAbort: e => log("MAME 멈춤: " + e),
@@ -266,6 +267,7 @@ async function startMAME(buf, set) {
         if (romBad) { setStatus("wait", "롬이 맞지 않아요"); $("forgetRom").hidden = false; $("romErr").textContent = "롬 파일이 MAME 0.285의 원더보이와 맞지 않아요(기록 참고). 저장된 롬을 지우고 다른 파일로 해 보세요."; $("romErr").hidden = false; $("drop").hidden = false; return; }
         setStatus("live", "실시간 · 지금 직접 플레이 중");
         $("keys").hidden = false; $("restart").hidden = false; $("forgetRom").hidden = false; $("tas").hidden = false; $("tabs").hidden = false; showTab("lib"); $("editor").hidden = false; tasPoll(); if (PLAYED_EDIT) edOpen(PLAYED_EDIT.frames, PLAYED_EDIT.id, PLAYED_EDIT.first);
+        if (!soundOn) tas("mute", "1");
         if (!PLAY) await newGame(true); else log("입력 기록 재생 중 (전원 켠 순간부터)");
       }, 6000);
     },
@@ -294,6 +296,14 @@ function tasPoll() {
 $("tPause").onclick = () => tas("pause");
 $("tRun").onclick = () => tas("run");
 $("tFree").onclick = () => tas("free");
+// sound (user 11-06: "소리가 안나는것 같은데"): on by default, the choice kept in this browser. Browsers start audio
+// only after a click or key, so the SDL audio context is resumed on the first one.
+let soundOn = true; try { soundOn = localStorage.getItem("wboy-sound") !== "off"; } catch (e) {}
+const showSound = () => { $("tSound").textContent = soundOn ? "🔊 소리" : "🔇 소리 꺼짐"; };
+$("tSound").onclick = () => { soundOn = !soundOn; try { localStorage.setItem("wboy-sound", soundOn ? "on" : "off"); } catch (e) {} tas("mute", soundOn ? "0" : "1"); showSound(); resumeAudio(); };
+function resumeAudio() { try { const ac = window.Module && Module.SDL2 && Module.SDL2.audioContext; if (ac && ac.state === "suspended") ac.resume(); } catch (e) {} }
+for (const t of ["pointerdown", "keydown"]) window.addEventListener(t, resumeAudio, true);
+showSound();
 // going back also clears the held keys (user 11-06: "전상태로 돌리면 키도 지워져야")
 const goBack = () => { document.querySelectorAll("#tas input[data-k]").forEach(x => x.checked = false); tas("back"); };
 $("tBack").onclick = goBack;      // back to where the last step / tap started (up to 10)

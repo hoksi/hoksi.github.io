@@ -159,6 +159,7 @@ emu.register_periodic(function()
         end
         if best then loading = best; autoplay = true; manager.machine:load("tas_" .. best); target = nil; msg = "playfrom"
         else play = nil; playEnd = 0; msg = "noslot" end
+      elseif op == "mute" then manager.machine.sound.system_mute = (a == "1")   -- sound on/off (11-06), no effect on the game
       elseif op == "dump" then dump(); msg = "dumped"
       end
     end
