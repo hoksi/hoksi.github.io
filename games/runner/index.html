@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>대신맨 러너 · 그래! 만들어보자</title>
+<meta name="description" content="대신맨이 달립니다. 버그는 피하고 아이디어는 모으세요.">
+<style>
+:root{--bg:#f6f4ef;--fg:#2d2a26;--mut:#7a746b;--card:#fffdf9;--btn:#2f6fed;--btnfg:#fff;--line:#d9d2c6}
+@media (prefers-color-scheme:dark){:root{--bg:#17161a;--fg:#ece7df;--mut:#a39d93;--card:#221f24;--btn:#5b8cff;--btnfg:#0d0d10;--line:#3a3631}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Noto Sans KR","Apple SD Gothic Neo",sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:0 0 2px}h1+p{margin:0 0 10px;color:var(--mut);font-size:13px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#d4e6f5;touch-action:manipulation;user-select:none}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated;outline:none}
+.hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;padding:8px 12px;font-weight:700;color:#2d2a26;font-size:15px;pointer-events:none;text-shadow:0 1px 0 #fff8}
+.ov{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(20,22,30,.55);color:#fff;text-align:center;padding:16px}
+.ov.hide{display:none}.ov h2{margin:0;font-size:24px}.ov p{margin:0;opacity:.9;font-size:14px}
+button{font:inherit;border:0;border-radius:999px;padding:8px 14px;background:var(--btn);color:var(--btnfg);font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.card{margin-top:12px;background:var(--card);border-radius:12px;padding:12px;font-size:13px;color:var(--mut);line-height:1.6}
+footer{margin-top:14px;font-size:12px;color:var(--mut);text-align:center;line-height:1.6}footer a{color:var(--btn)}
+</style>
+</head>
+<body>
+<main>
+  <h1>대신맨 러너</h1>
+  <p>버그(🐛)는 피하고 아이디어(💡)는 모으세요. 탭 또는 스페이스로 점프, 공중에서 한 번 더!</p>
+  <div class="stage" id="stage">
+    <canvas id="cv" tabindex="0"></canvas>
+    <div class="hud"><span id="hs">0</span><span id="hb">💡 0</span><span id="hbest">최고 0</span></div>
+    <div class="ov" id="ov"><h2 id="ot">대신맨 러너</h2><p id="op">탭하거나 스페이스를 눌러 출발!</p></div>
+  </div>
+  <div class="bar"><button class="ghost" id="sfx">🔊 효과음</button><button class="ghost" id="bgmbtn">🎵 배경음 끔</button></div>
+  <div class="card">대신맨은 귀찮은 일을 대신 해 주는 집 서버의 비서예요. 오늘은 버그를 피해 아이디어를 모으러 달립니다.
+    점수 = 달린 거리 + 아이디어 하나당 20점. 갈수록 빨라져요.</div>
+  <footer><a href="/">그래 만들어보자! 블로그</a> · <a href="/games/2048/">2048도 해 보기</a><br>
+    게임 엔진: KAPLAY (MIT) · 배경음: Meta MusicGen(small)으로 만든 곡, 비상업적 이용</footer>
+</main>
+<script src="kaplay.js"></script>
+<script>
+"use strict";
+// 대신맨 러너 for hoksi.github.io (2026-10-30). KAPLAY handles the loop, sprites, gravity and collisions; sprites are
+// pixel art drawn as ASCII and rendered to PNG; sound effects are synthesized with Web Audio (no files).
+const $ = id => document.getElementById(id);
+const store = {get(k, d) { try { const v = localStorage.getItem("runner_" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+               set(k, v) { try { localStorage.setItem("runner_" + k, JSON.stringify(v)); } catch (e) {} }};
+let best = store.get("best", 0);
+$("hbest").textContent = "최고 " + best;
+
+// ---- sound
+let actx = null, sfxOn = store.get("sfx", true), bgmOn = false;
+function ac() { if (!actx) { const A = window.AudioContext || window.webkitAudioContext; if (A) actx = new A(); } if (actx && actx.state === "suspended") actx.resume(); return actx; }
+function tone(freq, start, dur, type = "square", vol = 0.08, slideTo = null) {
+  if (!sfxOn) return; const a = ac(); if (!a) return;
+  const t0 = a.currentTime + start, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+const sfx = {jump: () => tone(330, 0, 0.12, "square", 0.06, 660), jump2: () => tone(495, 0, 0.12, "square", 0.06, 990),
+             bulb: () => { tone(988, 0, 0.07, "square", 0.06); tone(1319, 0.07, 0.12, "square", 0.06); },
+             hit: () => { tone(220, 0, 0.25, "sawtooth", 0.09, 55); }, step: n => tone(n, 0, 0.18, "triangle", 0.08)};
+function soundButtons() { $("sfx").textContent = sfxOn ? "🔊 효과음" : "🔇 효과음 끔"; $("bgmbtn").textContent = bgmOn ? "🎵 배경음 켬" : "🎵 배경음 끔"; }
+$("sfx").onclick = () => { sfxOn = !sfxOn; store.set("sfx", sfxOn); soundButtons(); };
+// background loop through Web Audio: an <audio loop> element leaves a gap at every wrap on most browsers (2026-10-30)
+let bgmBuf = null, bgmSrc = null, bgmGain = null;
+async function bgmStart() {
+  const a = ac(); if (!a) throw new Error("no audio");
+  if (!bgmBuf) bgmBuf = await a.decodeAudioData(await (await fetch("bgm.ogg")).arrayBuffer());
+  bgmGain = bgmGain || a.createGain(); bgmGain.gain.value = 0.3; bgmGain.connect(a.destination);
+  bgmSrc = a.createBufferSource(); bgmSrc.buffer = bgmBuf; bgmSrc.loop = true; bgmSrc.connect(bgmGain); bgmSrc.start();
+}
+function bgmStop() { if (bgmSrc) { try { bgmSrc.stop(); } catch (e) {} bgmSrc = null; } }
+$("bgmbtn").onclick = () => { bgmOn = !bgmOn;
+  if (bgmOn) bgmStart().catch(() => { bgmOn = false; soundButtons(); }); else bgmStop(); soundButtons(); };
+soundButtons();
+
+// ---- game
+const W = 320, H = 180, GROUND = 150, S = 2;          // logical pixels; sprites are drawn at 2x
+const k = kaplay({width: W, height: H, canvas: $("cv"), letterbox: true, crisp: true, global: false, touchToMouse: true,
+                  background: [212, 230, 245], debug: false});
+const seed = new URLSearchParams(location.search).get("seed");
+if (seed) k.randSeed(Number(seed));
+k.loadSprite("hero", "hero.png", {sliceX: 5, anims: {run: {from: 0, to: 3, loop: true, speed: 12}, jump: 4}});
+k.loadSprite("bug", "bug.png", {sliceX: 2, anims: {walk: {from: 0, to: 1, loop: true, speed: 6}}});
+k.loadSprite("bulb", "bulb.png", {sliceX: 2, anims: {glow: {from: 0, to: 1, loop: true, speed: 3}}});
+k.setGravity(1250);
+
+let state = "ready", run = null;
+function overlay(title, text) { $("ot").textContent = title; $("op").textContent = text; $("ov").classList.remove("hide"); }
+
+k.scene("game", () => {
+  run = {speed: 150, dist: 0, bulbs: 0, next: 1.0, milestone: 500};
+  // sky dressing: two cloud bands that drift slowly (parallax)
+  for (let i = 0; i < 4; i++) {
+    const c = k.add([k.rect(k.rand(28, 48), 8, {radius: 4}), k.pos(i * 90 + k.rand(0, 40), k.rand(18, 70)), k.color(255, 255, 255), k.opacity(0.85)]);
+    c.onUpdate(() => { c.move(-run.speed * 0.15, 0); if (c.pos.x < -60) c.pos.x = W + k.rand(0, 40); });
+  }
+  k.add([k.rect(W, H - GROUND), k.pos(0, GROUND), k.area(), k.body({isStatic: true}), k.color(135, 104, 76), "ground"]);
+  const grass = [];
+  for (let i = 0; i < 12; i++) grass.push(k.add([k.rect(18, 4), k.pos(i * 30, GROUND), k.color(i % 2 ? 91 : 79, i % 2 ? 191 : 170, 74)]));
+  const hero = k.add([k.sprite("hero", {anim: "run"}), k.pos(40, GROUND - 16 * S), k.scale(S),
+                      k.area({shape: new k.Rect(k.vec2(5, 1), 7, 13)}), k.body(), k.doubleJump(2), "hero"]);
+  hero.onGround(() => { if (state === "play") hero.play("run"); });
+  hero.onDoubleJump(() => sfx.jump2());
+  function jump() {
+    if (state === "ready") { state = "play"; $("ov").classList.add("hide"); ac(); return; }
+    if (state === "over") { k.go("game"); state = "play"; $("ov").classList.add("hide"); return; }
+    if (hero.isGrounded()) sfx.jump();
+    hero.doubleJump(420); hero.play("jump");
+  }
+  k.onKeyPress(["space", "up", "w"], jump);
+  k.onMousePress(jump);
+  hero.onCollide("bug", () => {
+    if (state !== "play") return;
+    state = "over"; sfx.hit(); k.shake(6); hero.stop();
+    const score = Math.floor(run.dist / 10) + run.bulbs * 20;
+    const record = score > best; if (record) { best = score; store.set("best", best); $("hbest").textContent = "최고 " + best; }
+    overlay(record ? "새 기록! " + score + "점" : "버그에 걸렸어요", `점수 ${score} · 아이디어 ${run.bulbs}개 · 탭해서 다시`);
+  });
+  hero.onCollide("bulb", b => { k.destroy(b); run.bulbs++; sfx.bulb(); });
+
+  function spawn() {
+    const r = k.rand();
+    if (r < 0.62 || run.dist < 200) {                                     // a bug on the ground (sometimes two in a row)
+      const n = run.dist > 1500 && k.rand() < 0.3 ? 2 : 1;
+      for (let i = 0; i < n; i++) {
+        const b = k.add([k.sprite("bug", {anim: "walk"}), k.pos(W + 10 + i * 26, GROUND - 12 * S), k.scale(S),
+                         k.area({shape: new k.Rect(k.vec2(2, 2), 12, 9)}), "bug"]);
+        b.onUpdate(() => { b.move(-run.speed * (state === "play" ? 1 : 0), 0); if (b.pos.x < -40) k.destroy(b); });
+      }
+    }
+    if (r > 0.45) {                                                       // ideas float at jump height
+      const y = GROUND - k.rand(46, 100);
+      const l = k.add([k.sprite("bulb", {anim: "glow"}), k.pos(W + k.rand(40, 90), y), k.scale(S), k.area(), "bulb"]);
+      l.onUpdate(() => { l.move(-run.speed * (state === "play" ? 1 : 0), 0); if (l.pos.x < -40) k.destroy(l); });
+    }
+  }
+  k.onUpdate(() => {
+    if (state !== "play") return;
+    const dt = k.dt();
+    run.dist += run.speed * dt;
+    run.speed = Math.min(150 + run.dist / 18, 340);                      // slowly faster
+    for (const g of grass) { g.move(-run.speed, 0); if (g.pos.x < -30) g.pos.x += 360; }
+    run.next -= dt;
+    if (run.next <= 0) { spawn(); run.next = k.rand(0.75, 1.5) * (190 / run.speed) + 0.35; }
+    if (run.dist >= run.milestone) { sfx.step(660); sfx.step(880); run.milestone += 500; }
+    $("hs").textContent = Math.floor(run.dist / 10) + run.bulbs * 20;
+    $("hb").textContent = "💡 " + run.bulbs;
+  });
+  window.__runner = {get state() { return state; }, get run() { return run; }, jump, hero, spawnBug() {
+    const b = k.add([k.sprite("bug", {anim: "walk"}), k.pos(120, GROUND - 12 * S), k.scale(S), k.area({shape: new k.Rect(k.vec2(2, 2), 12, 9)}), "bug"]);
+    b.onUpdate(() => b.move(-run.speed * (state === "play" ? 1 : 0), 0)); }};
+});
+k.go("game");
+overlay("대신맨 러너", "탭하거나 스페이스를 눌러 출발! (공중에서 한 번 더 점프)");
+</script>
+</body>
+</html>

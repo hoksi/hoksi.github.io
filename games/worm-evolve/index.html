@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>선충 진화시키기</title>
+<style>
+:root {
+  --bg: #eef1ec; --panel: #f8faf6; --line: #d3dacf; --ink: #1d2a24; --muted: #5d6b63;
+  --accent: #2f6fb3; --alert: #c8384f; --food: #12924f; --pred: #c8384f; --pick: #c08a00; --best: #2f6fb3; --mean: #8f9a93;
+  --body: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1411; --panel: #131c18; --line: #24322b; --ink: #e2ebe5; --muted: #8fa198;
+    --accent: #6fb0ff; --alert: #ff6b7f; --food: #39e07f; --pred: #ff6b7f; --pick: #f2c94c; --best: #6fb0ff; --mean: #6b7a72;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1411; --panel: #131c18; --line: #24322b; --ink: #e2ebe5; --muted: #8fa198;
+  --accent: #6fb0ff; --alert: #ff6b7f; --food: #39e07f; --pred: #ff6b7f; --pick: #f2c94c; --best: #6fb0ff; --mean: #6b7a72;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.5; }
+main { max-width: 900px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 14px; }
+h1 { margin: 0; font-size: 1.5rem; }
+h2 { margin: 0 0 6px; font-size: 1.05rem; }
+header p { margin: 4px 0 0; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.muted { color: var(--muted); font-size: .9rem; }
+button, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.seg button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.status { font-family: var(--mono); font-size: .92rem; }
+[hidden] { display: none !important; }
+button.link { background: none; border: none; padding: 2px 0; min-height: 0; color: var(--best); text-decoration: underline; cursor: pointer; font: inherit; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cell { position: relative; border: 2px solid var(--line); border-radius: 8px; background: var(--bg); padding: 0; overflow: hidden; cursor: pointer; text-align: left; }
+.cell canvas { display: block; width: 100%; height: auto; }
+.cell .tag { position: absolute; left: 4px; top: 2px; font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+.cell .score { position: absolute; right: 5px; top: 2px; font-family: var(--mono); font-size: .85rem; font-weight: 700; }
+.cell.picked { border-color: var(--pick); box-shadow: 0 0 0 2px var(--pick); }
+.cell.picked .tag::after { content: " ★부모"; color: var(--pick); font-weight: 700; }
+.cell.focus { outline: 2px dashed var(--accent); outline-offset: 2px; }
+#chart, #tree { width: 100%; display: block; }
+.legend { display: flex; gap: 14px; font-size: .85rem; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 5px; background: var(--c); }
+.info { font-size: .9rem; }
+.info b { font-family: var(--mono); }
+details { color: var(--muted); font-size: .9rem; }
+input[type=file] { display: none; }
+@media (max-width: 520px) { .grid { gap: 5px; } .cell .tag { font-size: .7rem; } .cell .score { font-size: .78rem; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>선충 진화시키기</h1>
+    <p>진짜 꼬마선충의 신경 연결 지도(커넥톰)를 가진 선충들이 같은 판에서 나란히 살아요. 마음에 드는 선충을 부모로 고르면, 조금씩 다른 자식들이 태어나요. 그렇게 세대를 이어 가며 선충을 진화시켜 보세요.</p>
+  </header>
+
+  <section class="panel" id="setup">
+    <h2>1. 무대와 출발 선충</h2>
+    <div class="row">
+      <label>무대 <select id="stageSel"></select></label>
+      <label>출발 <select id="originSel"></select></label>
+    </div>
+    <div class="row">
+      <button class="primary" id="newBtn">이 설정으로 새로 시작</button>
+      <span class="muted" id="setupNote"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="genTitle">2. 관찰</h2>
+      <span class="status" id="status">불러오는 중…</span>
+    </div>
+    <div class="row" id="pastBar" hidden>
+      <span class="muted">지난 세대를 보고 있어요.</span>
+      <button id="backBtn">현재 세대로</button>
+      <button id="branchBtn">여기서 다시 진화</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="muted" id="gamesNote" hidden style="font-size:.9rem;margin:6px 0 0">칸에 보이는 건 첫 번째 판이에요. 오른쪽 위 "평균"은 첫 판이 끝난 뒤 보이지 않게 2판을 더 해서 낸 3판 평균이라, 칸 안의 "이 판 몇 점"(첫 판 점수)과 다를 수 있어요.</p>
+    <p class="muted" id="autoNote" hidden>자동 진화 중에는 미리 보기를 꺼 둬요. 멈추거나 끝나면 마지막 세대가 보여요. 진행은 아래 그래프에서 볼 수 있어요.</p>
+    <div class="row">
+      <span class="muted">속도</span>
+      <span class="seg row" id="speedSeg">
+        <button data-v="1" aria-pressed="true">보통</button><button data-v="4">빠르게</button><button data-v="0">바로 결과</button>
+      </span>
+      <button id="replayBtn">다시 보기</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>3. 부모 고르기와 다음 세대</h2>
+    <p class="muted" style="margin:0">위 판을 눌러 부모를 1~3마리 고르세요. 점수는 먹은 먹이 수예요. 게임처럼 3번 잡히면 게임 오버라 그만큼 먹을 시간이 줄어요(왼쪽 아래 점이 남은 목숨). 점수는 참고만 하세요. 움직임이 마음에 드는 선충을 골라도 돼요.</p>
+    <div class="row">
+      <button id="autoBtn">점수대로 고르기</button>
+      <button id="clearBtn">고른 것 지우기</button>
+    </div>
+    <div class="row">
+      <span class="muted">평가</span>
+      <span class="seg row" id="gamesSeg"><button data-v="1" aria-pressed="true">1판</button><button data-v="3">3판 평균</button></span>
+    </div>
+    <div class="row">
+      <span class="muted">변이 세기</span>
+      <span class="seg row" id="sigmaSeg"><button data-v="0.03" aria-pressed="true">조금</button><button data-v="0.1">많이</button></span>
+      <button class="primary" id="nextBtn" disabled>다음 세대 태어나게 하기</button>
+    </div>
+    <div class="muted" id="nextHint" style="font-size:.9rem"></div>
+    <div class="row">
+      <span class="muted">자동 진화</span>
+      <span class="seg row" id="autoSeg"><button data-v="10" aria-pressed="true">10세대</button><button data-v="30">30세대</button><button data-v="100">100세대</button></span>
+      <button id="autoRunBtn">자동으로 진화시키기</button>
+    </div>
+    <div class="row">
+      <span class="muted">되돌아가며</span>
+      <span class="seg row" id="climbSeg"><button data-v="3">3바퀴</button><button data-v="5" aria-pressed="true">5바퀴</button><button data-v="10">10바퀴</button></span>
+      <button id="climbBtn">되돌아가며 자동 진화</button>
+    </div>
+    <p class="muted" style="margin:0;font-size:.9rem">한 바퀴 = 위 "자동 진화"에서 고른 세대 수만큼 진화하고, <b>세대 평균</b>이 처음(출발 세대) 평균보다 높은 세대 중 평균 상위 3개를 골라, 그중 최고점과 평균의 간극이 가장 작은 세대로 되돌아가 거기서 다시 해요. 처음 평균을 넘는 세대가 없으면 그 바퀴를 출발한 세대로 되돌아가요. 바퀴를 돌았는데 출발 세대보다 나아지지 않으면(제자리걸음) 다음 바퀴는 변이를 "많이"로 키우고, 나아지면 원래 변이로 돌아가요. 되돌아갈 때 그 뒤 세대 기록은 지워져요.</p>
+    <div class="muted" id="climbLog" style="font-size:.9rem"></div>
+    <p class="muted" style="margin:0;font-size:.9rem">"3판 평균"을 고르면 보이는 판 말고 2판을 더 해서 평균 점수로 비교해요. 운이 덜 섞이는 대신 3배 오래 걸려요. 자동 진화는 세대마다 점수 상위 3마리를 부모로 골라 정한 세대만큼 이어서 진화시켜요. 화면은 세대가 끝날 때마다 바뀌어요. 언제든 멈출 수 있어요.</p>
+    <div class="info" id="info"></div>
+    <div class="row" id="testRow" hidden>
+      <button id="testBtn">이 선충 20판 시험</button>
+      <span class="muted" id="testNote" style="font-size:.9rem"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>4. 진화 과정</h2>
+    <div class="legend"><span><i style="--c:var(--best)"></i>세대 최고점</span><span><i style="--c:var(--mean)"></i>세대 평균</span></div>
+    <canvas id="chart" width="840" height="220" aria-label="세대별 점수 그래프" style="cursor:pointer"></canvas>
+    <div class="row">
+      <span class="muted">세대 보기</span><select id="genSel"></select>
+      <span class="muted" style="font-size:.9rem">그래프를 눌러도 그 세대로 가요.</span>
+    </div>
+    <h2 style="margin-top:6px">시험한 선충</h2>
+    <p class="muted" style="margin:0;font-size:.9rem">"이 선충 20판 시험"을 한 선충들이에요. 모두 같은 20판(진화에 안 쓴 판)으로 시험해서 서로 비교할 수 있어요. ± 는 표준오차예요(평균이 운으로 흔들리는 폭).</p>
+    <div id="testList" class="muted">아직 없어요.</div>
+    <h2 style="margin-top:6px">가계도</h2>
+    <p class="muted" style="margin:0">세로 줄 하나가 한 세대예요. 선은 부모에서 자식으로 이어져요. 점을 누르면 그 선충의 조상을 따라가 보여 줘요.</p>
+    <div style="overflow-x:auto"><svg id="tree" height="10"></svg></div>
+  </section>
+
+  <section class="panel">
+    <h2>5. 저장</h2>
+    <p class="muted" style="margin:0">기록은 이 브라우저에 자동으로 저장돼요. 방문 기록을 지우면 사라지니 가끔 .db 파일로 내려받아 두세요. 내려받은 파일은 SQLite 파일이라 다른 프로그램으로도 열어 볼 수 있어요.</p>
+    <div class="row">
+      <button id="saveBtn">.db 내려받기</button>
+      <button id="loadBtn">.db 불러오기</button><input type="file" id="fileIn" accept=".db,.sqlite,application/octet-stream">
+      <span class="muted" id="dbNote"></span>
+    </div>
+  </section>
+
+  <details>
+    <summary>어떻게 돌아가나요?</summary>
+    <p>선충마다 진짜 꼬마선충의 신경 연결 지도(뉴런과 근육 448개)는 같고, 진화하는 것은 숫자 1,595개예요. 뉴런마다 얼마나 세게 내보내는지·얼마나 쉽게 켜지는지, 그리고 게임 감각이 어느 뉴런으로 들어가고 어느 뉴런이 어떤 행동이 되는지예요. 자식은 부모의 숫자에 작은 무작위 변화를 더해 태어나요. 서버에서 하는 진화와 같은 방식인데, 여기서는 고르는 것을 사람이 해요. 선충 행동은 직접 손대지 않아요.</p>
+  </details>
+</main>
+
+<script src="brain/brain.js"></script>
+<script src="brain/play.js"></script>
+<script src="fastbrain.js?v=2"></script>
+<script src="sim.js?v=5"></script>
+<script src="lib/sql-wasm.js"></script>
+<script>
+"use strict";
+// 선충 진화시키기 (기획 3; user, 2026-11-05: "이제 기획3 진행하자"). Visitors pick parents each generation and watch.
+// Genes = the server's theta for FreeIOFreeFirePlayer (worm.py): [out per L/R group (341) | bias per group (341) |
+// 3 readout thresholds | Win 13x45 | Wout 5x65] = 1,595 float32, decoded here exactly as Brain.set_params does, so a
+// worm saved in the .db can be loaded by the server's Python and played in the real Super Tank.
+const $ = id => document.getElementById(id);
+let SQL, db;                                                 // base, layout, template, G live in sim.js
+// ---- drawing a small arena
+function drawArena(A, cv, color) {
+  const ctx = cv.getContext("2d"), S = cv.width / EW, css = getComputedStyle(document.documentElement);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = css.getPropertyValue("--food");
+  for (const [x, y] of A.foods) ctx.fillRect(x * S - 1.5, y * S - 1.5, 3, 3);
+  ctx.fillStyle = css.getPropertyValue("--pred");
+  for (const e of A.preds) { ctx.fillRect((e.p[0] - HALF) * S, (e.p[1] - HALF) * S, 2 * HALF * S, 2 * HALF * S); if (e.shell) ctx.fillRect(e.shell[0] * S - 1.5, e.shell[1] * S - 1.5, 3, 3); }
+  if (A.w.shell) {                                           // the worm's own shot (it can kill a predator, which then restarts)
+    ctx.fillStyle = color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(A.w.shell[0] * S, A.w.shell[1] * S, 5, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  for (const k of A.kills || []) if (A.t - k.t < 6) {        // where a predator was shot: a short burst
+    ctx.strokeStyle = css.getPropertyValue("--pred"); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(k.p[0] * S, k.p[1] * S, 6 + 3 * (A.t - k.t), 0, 7); ctx.stroke();
+  }
+  ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.globalAlpha = A.w.armor && Math.floor(A.w.armor / 3) % 2 ? 0.35 : 1;
+  ctx.beginPath(); A.trail.forEach(([x, y], i) => i ? ctx.lineTo(x * S, y * S) : ctx.moveTo(x * S, y * S)); ctx.stroke();
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(A.w.p[0] * S, A.w.p[1] * S, 3.2, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+  if (A.preds.length) {                                      // lives left, bottom left
+    ctx.fillStyle = css.getPropertyValue("--pred");
+    for (let k = 0; k < LIVES - A.caught; k++) { ctx.beginPath(); ctx.arc(8 + k * 9, cv.height - 8, 3, 0, 7); ctx.fill(); }
+  }
+  if (A.done) {                                             // the end of the game: game over, or survived (and cleared)
+    const title = A.over ? "게임 오버" : A.stage === "heaven" ? (A.foods.length ? "시간 끝" : "다 먹음") : "살아남음";
+    ctx.fillStyle = A.over ? "rgba(0,0,0,.45)" : "rgba(18,146,79,.35)"; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = "#fff"; ctx.font = "bold 34px sans-serif"; ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 4;
+    ctx.fillText(title, cv.width / 2, cv.height / 2 - 18); ctx.font = "bold 26px sans-serif"; ctx.fillText(`이 판 ${score(A)}점`, cv.width / 2, cv.height / 2 + 16);
+    ctx.fillText(`${A.t}걸음` + (A.preds.length ? ` · 목숨 ${Math.max(0, LIVES - A.caught)}` : ""), cv.width / 2, cv.height / 2 + 48); ctx.shadowBlur = 0; ctx.textAlign = "start";
+  }
+}
+const COLORS = ["#12924f", "#2f6fb3", "#b06a12", "#7a4fb5", "#0e8784", "#c2417a", "#6f8f00", "#8a5a2b", "#2d3a8c"];
+
+// ---- database (sql.js in the browser; saved to IndexedDB as bytes; downloadable as a .db file)
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS worms (id INTEGER PRIMARY KEY, gen INTEGER, slot INTEGER, sigma REAL, name TEXT, memo TEXT,
+  created TEXT, genes BLOB);                -- genes: 1,595 float32 little-endian, worm.py FreeIOFreeFirePlayer theta order
+CREATE TABLE IF NOT EXISTS parents (child INTEGER, parent INTEGER);
+CREATE TABLE IF NOT EXISTS plays (worm INTEGER, stage TEXT, game INTEGER, seed INTEGER, score REAL, eaten INTEGER,
+  caught INTEGER, steps INTEGER);
+CREATE TABLE IF NOT EXISTS picks (gen INTEGER, worm INTEGER);
+CREATE TABLE IF NOT EXISTS tests (worm INTEGER, stage TEXT, n INTEGER, mean REAL, se REAL, lo REAL, hi REAL, created TEXT);`;
+const idb = (mode, fn) => new Promise((res, rej) => {
+  const q = indexedDB.open("worm-evolve", 1);
+  q.onupgradeneeded = () => q.result.createObjectStore("db");
+  q.onsuccess = () => { const tx = q.result.transaction("db", mode), r = fn(tx.objectStore("db")); tx.oncomplete = () => res(r && r.result); tx.onerror = () => rej(tx.error); };
+  q.onerror = () => rej(q.error);
+});
+async function persist() { try { const bytes = db.export(); await idb("readwrite", s => s.put(bytes, "main")); } catch (e) { $("dbNote").textContent = "브라우저 저장 실패: .db로 내려받아 두세요"; } }
+async function restore() { try { return await idb("readonly", s => s.get("main")); } catch (e) { return null; } }
+const q = (sql, args = []) => { const st = db.prepare(sql); st.bind(args); const rows = []; while (st.step()) rows.push(st.getAsObject()); st.free(); return rows; };
+const meta = k => (q("SELECT value FROM meta WHERE key=?", [k])[0] || {}).value;
+const setMeta = (k, v) => db.run("INSERT OR REPLACE INTO meta VALUES (?,?)", [k, String(v)]);
+const genesOf = id => { const b = q("SELECT genes FROM worms WHERE id=?", [id])[0].genes; return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)); };
+const bytesOf = genes => new Uint8Array(genes.buffer.slice(0));
+
+// ---- state of the page
+const S = { climb: null, climbN: 5, games: 1, scores: [], auto: 0, autoN: 10, runId: 0, gen: 0, worms: [], arenas: [], picked: new Set(), focus: null, speed: 1, sigma: 0.03, running: false, seed: 0 };
+
+function newEvolution(stage, origin) {
+  db.run("DELETE FROM worms; DELETE FROM parents; DELETE FROM plays; DELETE FROM picks; DELETE FROM tests; DELETE FROM meta;");
+  setMeta("stage", stage); setMeta("origin", origin); setMeta("created", new Date().toISOString()); setMeta("format", "worm-evolve 1"); setMeta("games", S.games);
+  const r = rng(Date.now() & 0xffffffff), m = ORIGINS[origin].model;
+  const start = m ? (GENES[m] ? Float32Array.from(GENES[m]) : encode(PUBLIC[m])) : null;
+  for (let i = 0; i < N; i++) {
+    const g = start ? (i === 0 ? start : mutate(start, 0.03, r)) : randomGenes(Math.floor(r() * 1e9));
+    db.run("INSERT INTO worms (gen, slot, sigma, name, created, genes) VALUES (0,?,?,?,?,?)", [i, start ? (i ? 0.03 : 0) : null, `0-${i + 1}`, new Date().toISOString(), bytesOf(g)]);
+  }
+  loadGeneration(0);
+}
+function loadGeneration(gen, quick) {
+  S.gen = gen; S.cur = +(meta("gen") || 0); $("pastBar").hidden = gen >= S.cur; S.picked = new Set(q("SELECT worm FROM picks WHERE gen=?", [gen]).map(r => r.worm));
+  S.worms = q("SELECT id, slot, name FROM worms WHERE gen=? ORDER BY slot", [gen]);
+  if (meta(`seedoff:${gen}`) == null) setMeta(`seedoff:${gen}`, meta("epochoff") || 0);   // boards of this generation (see seedsOf)
+  S.seed = seedsOf(gen)[0];                                  // every worm of a generation plays the same game(s)
+  $("genTitle").textContent = `2. 관찰 · ${gen}세대` + (gen < S.cur ? " (지난 세대)" : "");
+  buildGrid(); play(quick);
+}
+function buildGrid() {
+  const grid = $("grid"); grid.innerHTML = "";
+  S.cells = S.worms.map((w, i) => {
+    const b = document.createElement("button"); b.className = "cell"; b.type = "button";
+    b.innerHTML = `<canvas width="236" height="192"></canvas><span class="tag">${w.name}</span><span class="score"></span>`;
+    b.onclick = () => togglePick(w.id);
+    grid.append(b); return b;
+  });
+  syncPicks();
+}
+function play(quick) {
+  if (!db) return;                                          // still loading
+  const stage = meta("stage");
+  S.arenas = S.worms.map(w => makeArena(stage, S.seed, genesOf(w.id)));
+  S.running = true; S.lastFrame = 0; syncPicks();
+  const run = ++S.runId;                                     // a newer run stops older slices (replay, next generation)
+  if (!S.testing) cancelPool();
+  // all of a generation's games in one batch (3판 평균: 27 games at once keeps every core busy; before, the 2 extra
+  // games waited for the shown one) (user, 11-05: "뭔가 시간이 많이 걸리는것 같은데..")
+  const seeds = seedsOf(S.gen).slice(0, S.games).filter((sd, k) => !k || !q("SELECT 1 FROM plays WHERE worm=? AND seed=?", [S.worms[0].id, sd]).length);
+  if ((S.speed === 0 || quick) && POOL.ok) poolGames(seeds, run, "계산 중")
+    .then(sets => { if (run !== S.runId) return; S.arenas = sets[0]; sets.slice(1).forEach((ar, k) => storePlays(ar, seeds[k + 1])); finish(); })
+    .catch(e => { poolFailed(e); if (run === S.runId) crunch(run); });
+  else if (S.speed === 0 || quick) setTimeout(() => crunch(run), 0); else requestAnimationFrame(ts => frame(ts, run));
+}
+// ---- worker pool: whole games on other cores (one job = one worm, one seed); falls back to slices on this thread
+const POOL = { ok: false, workers: [], queue: [], batches: new Map(), seq: 0 };
+// jobs carry their batch: a superseded batch (another generation was opened mid-way) is dropped, and the answers its
+// running jobs still send are ignored, so they can never mix into the new batch
+function startPool() {
+  try {
+    const k = Math.max(1, Math.min(navigator.hardwareConcurrency || 2, N));
+    for (let i = 0; i < k; i++) {
+      const w = new Worker("worker.js?v=5"); w.busy = false;
+      w.onmessage = e => poolMessage(w, e.data);
+      w.onerror = e => { e.preventDefault && e.preventDefault(); for (const b of POOL.batches.values()) b.reject(new Error(e.message || "worker")); POOL.batches.clear(); };
+      w.postMessage({ init: { base, layout, template, G } }); POOL.workers.push(w);
+    }
+    POOL.ok = true;
+  } catch (e) { POOL.ok = false; }
+}
+function pump() { for (const w of POOL.workers) if (!w.busy && POOL.queue.length) { w.busy = true; w.postMessage(POOL.queue.shift()); } }
+function poolMessage(w, m) {
+  if (m.A || m.error) w.busy = false;
+  const b = POOL.batches.get(m.batch);
+  if (b) {
+    if (m.error) { POOL.batches.delete(m.batch); POOL.queue = POOL.queue.filter(j => j.batch !== m.batch); b.reject(new Error(m.error)); }
+    else {
+      if (m.A) { b.out[m.id] = m.A; b.tt[m.id] = STEPS; b.left--; } else b.tt[m.id] = m.t;
+      b.onProgress && b.onProgress(b.tt.reduce((x, y) => x + y, 0) / b.tt.length);
+      if (!b.left) { POOL.batches.delete(m.batch); b.resolve(b.out); }
+    }
+  }
+  pump();
+}
+function runPool(jobs, onProgress) {
+  return new Promise((resolve, reject) => {
+    const batch = ++POOL.seq;
+    POOL.batches.set(batch, { out: new Array(jobs.length), tt: new Array(jobs.length).fill(0), left: jobs.length, resolve, reject, onProgress });
+    jobs.forEach((j, id) => POOL.queue.push({ batch, id, stage: j.stage, seed: j.seed, genes: j.genes }));
+    pump();
+  });
+}
+function cancelPool() { POOL.queue = []; POOL.batches.clear(); }   // pending promises are simply left unresolved
+function poolGames(seeds, run, label) {                      // -> per seed, the 9 finished arenas (snapshots)
+  const stage = meta("stage"), jobs = [];
+  for (const seed of seeds) for (const w of S.worms) jobs.push({ stage, seed, genes: genesOf(w.id) });
+  return runPool(jobs, t => { if (run === S.runId) $("status").textContent = (S.autoWasOn ? `자동 진화 중 · ${S.gen}세대 · ` : "") + label + ` ${Math.round(t)} / ${STEPS}걸음`; })
+    .then(res => seeds.map((_, k) => res.slice(k * S.worms.length, (k + 1) * S.worms.length)));
+}
+function poolFailed(e) { console.warn("worker pool off:", e); POOL.ok = false; POOL.workers.forEach(w => w.terminate()); POOL.workers = []; }
+// "바로 결과": compute in small slices so the page (and a phone) stays responsive and shows progress
+function crunch(run) {
+  if (run !== S.runId || !S.running) return;
+  try {
+    const t0 = performance.now();
+    while (performance.now() - t0 < 40 && !S.arenas.every(A => A.done)) for (const A of S.arenas) if (!A.done) step(A);
+    const t = Math.max(...S.arenas.map(A => A.t));
+    $("status").textContent = (S.autoWasOn ? `자동 진화 중 · ${S.gen}세대 · ` : "") + `계산 중 ${t} / ${STEPS}걸음`;
+    if (S.arenas.every(A => A.done)) finish(); else setTimeout(() => crunch(run), 0);
+  } catch (e) { fail(e); }
+}
+function fail(e) { S.running = false; $("status").textContent = "오류"; $("info").textContent = "오류: " + (e && e.message || e); syncPicks(); console.error(e); }
+function frame(ts, run) {
+  if (!S.running || run !== S.runId) return;
+  const per = S.speed === 4 ? 4 : 1, interval = S.speed === 4 ? 30 : 80;
+  if (ts - S.lastFrame >= interval) {
+    S.lastFrame = ts;
+    for (let k = 0; k < per; k++) for (const A of S.arenas) step(A);
+    render();
+  }
+  if (S.arenas.every(A => A.done)) finish(); else requestAnimationFrame(t => frame(t, run));
+}
+function loadGamesSetting() {                                // "1판 / 3판 평균" is remembered with the evolution
+  S.games = +(meta("games") || 1);
+  $("gamesSeg").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", +x.dataset.v === S.games));
+}
+// the boards of a generation: 1000+gen (and 101000+gen, 201000+gen for 3판), shifted by the generation's seedoff. A climb
+// that goes back gives the regenerated generations new boards (2026-11-06: going back to 58 replayed the same hard boards
+// 59..68 every round and stayed stuck 23 rounds). Old .db files have no seedoff: shift 0, the boards they were played on.
+const seedsOf = gen => { const o = +(meta(`seedoff:${gen}`) || 0); return [1000 + gen + o, 101000 + gen + o, 201000 + gen + o]; };
+function storePlays(arenas, seed) {
+  if (q("SELECT 1 FROM plays WHERE worm=? AND seed=?", [S.worms[0].id, seed]).length) return;
+  const stage = meta("stage");
+  S.worms.forEach((w, i) => { const A = arenas[i]; db.run("INSERT INTO plays VALUES (?,?,?,?,?,?,?,?)", [w.id, stage, S.gen, seed, score(A), A.eaten, A.caught, A.t]); });
+}
+// the extra games of "3판 평균" are computed without drawing, in slices, after the shown game
+function extraGames(run) {
+  if (run !== S.runId) return;
+  const need = seedsOf(S.gen).slice(1, S.games).filter(sd => !q("SELECT 1 FROM plays WHERE worm=? AND seed=?", [S.worms[0].id, sd]).length);
+  if (!need.length) return finalize();
+  S.running = true; syncPicks();
+  S.cells.forEach(c => { const el = c.querySelector(".score"); if (!el.textContent.includes("…")) el.textContent += " …"; });
+  if (POOL.ok) return poolGames(need, run, `${S.games}판 중 나머지 계산 중`).then(res => {
+    if (run !== S.runId) return; need.forEach((sd, k) => storePlays(res[k], sd)); finalize();
+  }).catch(e => { poolFailed(e); if (run === S.runId) extraGames(run); });
+  const sd = need[0], stage = meta("stage"), arenas = S.worms.map(w => makeArena(stage, sd, genesOf(w.id)));
+  const k = seedsOf(S.gen).indexOf(sd) + 1;
+  const slice = () => {
+    if (run !== S.runId) return;
+    try {
+      const t0 = performance.now();
+      while (performance.now() - t0 < 40 && !arenas.every(A => A.done)) for (const A of arenas) if (!A.done) step(A);
+      $("status").textContent = `${k}번째 판 계산 중 ${Math.max(...arenas.map(A => A.t))} / ${STEPS}걸음`;
+      if (arenas.every(A => A.done)) { storePlays(arenas, sd); setTimeout(() => extraGames(run), 0); } else setTimeout(slice, 0);
+    } catch (e) { fail(e); }
+  };
+  slice();
+}
+function render() {
+  if (S.autoWasOn) { $("status").textContent = `자동 진화 중 · ${S.gen}세대`; return; }   // preview off while auto-evolving
+  S.arenas.forEach((A, i) => { drawArena(A, S.cells[i].querySelector("canvas"), COLORS[i % COLORS.length]); S.cells[i].querySelector(".score").textContent = score(A); });
+  const t = Math.max(...S.arenas.map(A => A.t));
+  $("status").textContent = S.running ? `${t} / ${STEPS}걸음` : "끝 · 부모를 골라 주세요";
+}
+function finish() {
+  S.running = false; render();
+  storePlays(S.arenas, S.seed);
+  if (S.games > 1) { const run = ++S.runId; S.running = true; $("status").textContent = "나머지 판 준비 중"; syncPicks(); setTimeout(() => extraGames(run), 0); } else finalize();
+}
+function finalize() {
+  S.running = false;
+  // a worm's score for this generation = mean over the games it played in this generation
+  const games = S.games, seeds = seedsOf(S.gen).slice(0, games);
+  S.scores = S.worms.map(w => { const r = q(`SELECT AVG(score) m FROM plays WHERE worm=? AND seed IN (${seeds.join(",")})`, [w.id])[0]; return r.m; });
+  if (games > 1) S.cells.forEach((c, i) => c.querySelector(".score").textContent = `평균 ${(+S.scores[i]).toFixed(1)}`);
+  $("gamesNote").hidden = games < 2;
+  $("status").textContent = games > 1 ? `끝 · ${games}판 평균 · 부모를 골라 주세요` : "끝 · 부모를 골라 주세요";
+  if (!S.auto) persist();
+  drawChart(); if (!S.autoWasOn) { drawTree(); drawTests(); } syncPicks();
+  if (S.auto > 0) setTimeout(() => {
+    if (!S.auto) return;
+    try { S.auto--; autoPick(true); nextGeneration(); } catch (e) { stopAuto(); fail(e); }
+  }, 30);
+  else if (S.autoWasOn) stopAuto();
+}
+function showPreview(on) { $("grid").hidden = !on; $("autoNote").hidden = on; }
+// ---- climbing with backtracking (user, 2026-11-05: their own way to the 71st generation, "자동으로 기능 넣어줘"):
+// evolve N generations, go back to the generation with the best mean if it beats the base (raise the base), else go back
+// to where the round started; repeat. Uses the generation mean of the chart (each worm's mean over its games, averaged).
+const genMean = g => (q("SELECT AVG(m) m FROM (SELECT worm, AVG(score) m FROM plays WHERE game=? GROUP BY worm)", [g])[0] || {}).m;
+const genStat = g => q("SELECT AVG(m) mean, MAX(m) best FROM (SELECT worm, AVG(score) m FROM plays WHERE game=? GROUP BY worm)", [g])[0] || {};
+function cutAfter(g) {                                       // the later generations are deleted (as "여기서 다시 진화")
+  db.run("DELETE FROM worms WHERE gen > ?", [g]);
+  db.run("DELETE FROM parents WHERE child NOT IN (SELECT id FROM worms)");
+  db.run("DELETE FROM plays WHERE game > ? OR worm NOT IN (SELECT id FROM worms)", [g]);
+  db.run("DELETE FROM picks WHERE gen >= ?", [g]);
+  db.run("DELETE FROM tests WHERE worm NOT IN (SELECT id FROM worms)");
+  db.run("DELETE FROM meta WHERE key LIKE 'seedoff:%' AND CAST(substr(key, 9) AS INTEGER) > ?", [g]);
+  setMeta("gen", g);
+}
+function startClimb() {
+  if (!db || S.auto || S.testing || past()) return;
+  if (S.running) return flash("이 세대 게임이 끝나면 눌러 주세요");
+  const base = genMean(S.gen);
+  if (base == null) return flash("이 세대 점수가 아직 없어요");
+  if (!confirm(`되돌아가며 자동 진화를 ${S.climbN}바퀴(한 바퀴 ${S.autoN}세대) 해요. 되돌아갈 때 그 뒤 세대 기록은 지워져요. 지금 기록을 남기려면 먼저 ".db 내려받기"를 해 두세요. 시작할까요?`)) return;
+  S.climb = { left: S.climbN, total: S.climbN, N: S.autoN, base, g0: S.gen, gBase: S.gen, sigma0: S.sigma, log: [`출발: ${S.gen}세대 · 처음 평균 ${base.toFixed(1)}`] };
+  $("climbBtn").textContent = "멈추기"; showClimb(); startAuto();
+}
+// mean of generation g's worms on the given boards (worms' own stored plays are reused, missing games are played now)
+async function meanOn(g, seeds) {
+  const stage = meta("stage"), worms = q("SELECT id FROM worms WHERE gen=? ORDER BY slot", [g]), jobs = [], at = [];
+  const have = worms.map(w => seeds.map(sd => (q("SELECT score FROM plays WHERE worm=? AND seed=?", [w.id, sd])[0] || {}).score));
+  worms.forEach((w, i) => seeds.forEach((sd, k) => { if (have[i][k] == null) { at.push([i, k]); jobs.push({ stage, seed: sd, genes: genesOf(w.id) }); } }));
+  if (jobs.length) {
+    const res = POOL.ok ? await runPool(jobs) : jobs.map(j => { const A = makeArena(j.stage, j.seed, j.genes); while (!A.done) step(A); return A; });
+    res.forEach((A, n) => { const [i, k] = at[n]; have[i][k] = score(A); });
+  }
+  return have.reduce((t, r) => t + r.reduce((x, y) => x + y, 0) / r.length, 0) / have.length;
+}
+async function climbRound() {                                // called when a round's generations are done
+  const c = S.climb; if (!c) return;
+  const k = c.total - c.left + 1, games = S.games;
+  // the user's rule ("최고점과 평균 값의 간극이 가까운 세대를 선택함"): of the generations that beat the base, take the 3
+  // best means, and of those the one whose best worm is closest to its mean (a whole generation that is good, not one
+  // lucky worm). 2026-11-06 (user: "추천으로 수정"): "beats the base" is now judged on the same boards: the start
+  // generation (and the round's start) replay the boards of the 3 best generations of the round, so an easy or hard
+  // board no longer decides; after 3 stuck rounds in a row the best of the round is taken anyway.
+  const rows = []; for (let g = c.g0 + 1; g <= S.gen; g++) { const st = genStat(g); if (st.mean != null) rows.push({ g, mean: st.mean, gap: st.best - st.mean }); }
+  const cand = rows.slice().sort((a, b) => b.mean - a.mean).slice(0, 3);
+  $("status").textContent = `되돌아가며 진화 · ${k}바퀴 · 같은 판으로 비교 중`;
+  for (const r of cand) {
+    const seeds = seedsOf(r.g).slice(0, games);
+    r.base = await meanOn(c.gBase, seeds);
+    r.start = c.g0 === c.gBase ? r.base : await meanOn(c.g0, seeds);
+    if (S.climb !== c) return;                               // stopped meanwhile
+  }
+  const fmt = r => `${r.g}세대 ${r.mean.toFixed(1)}(출발 ${r.base.toFixed(1)}, 간극 ${r.gap.toFixed(1)})`;
+  const top = cand.filter(r => r.mean > r.base);
+  let pick = null;
+  if (top.length) {
+    pick = top.reduce((a, b) => b.gap < a.gap ? b : a);
+    c.log.push(`${k}바퀴: 같은 판에서 출발 세대보다 높은 세대 ${top.map(fmt).join(", ")} → 간극이 가장 작은 ${pick.g}세대로 되돌아가 거기서 다시`);
+    c.stuck = pick.mean <= pick.start;
+  } else {
+    c.log.push(`${k}바퀴: 평균 상위 ${cand.map(fmt).join(", ") || "-"} · 같은 판에서 출발 세대를 넘은 세대 없음`);
+    c.stuck = true;
+  }
+  c.stuckRun = c.stuck ? (c.stuckRun || 0) + 1 : 0;
+  if (!pick && c.stuckRun >= 3 && cand.length) {             // escape: 3 stuck rounds in a row
+    pick = cand.reduce((a, b) => (b.mean - b.start) > (a.mean - a.start) ? b : a);
+    c.log.push(`  3바퀴 연속 제자리 → 기준을 못 넘었지만 이번 바퀴에서 가장 나은 ${pick.g}세대로 넘어가요`);
+    c.stuckRun = 0;
+  } else if (!pick) c.log.push(`  → ${c.g0}세대로 되돌아가 새 판으로 다시`);
+  if (pick) { c.g0 = pick.g; c.picks = (c.picks || []).concat(pick); }
+  const was = S.sigma;
+  if (c.left > 1) setSigma(c.stuck ? 0.1 : c.sigma0);         // (not after the last round)
+  if (S.sigma !== was) c.log.push(c.stuck ? `  제자리걸음 → 다음 바퀴는 변이를 "많이"(0.1)로` : `  앞으로 나아감 → 변이를 원래대로(${c.sigma0})`);
+  c.left--;
+  cutAfter(c.g0);
+  const n = +(meta("epochn") || 0) + 1; setMeta("epochn", n); setMeta("epochoff", 300000 + 1000 * (n % 590));   // new boards from here
+  persist(); S.focus = null;
+  if (c.left > 0) { loadGeneration(c.g0, true); showClimb(); startAuto(); }
+  else endClimb(`끝: ${c.g0}세대에서 멈춤 (처음 평균 ${c.base.toFixed(1)} → 이 세대 평균 ${(genMean(c.g0) ?? 0).toFixed(1)})`);
+}
+function setSigma(v) {
+  S.sigma = v; $("sigmaSeg").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", +x.dataset.v === v));
+}
+function endClimb(msg) {
+  const c = S.climb; if (!c) return;
+  setSigma(c.sigma0);
+  if (msg) c.log.push(msg);
+  S.climb = null; $("climbBtn").textContent = "되돌아가며 자동 진화"; showClimb(c);
+  showPreview(true); loadGeneration(+(meta("gen") || 0), true);
+}
+function showClimb(c = S.climb) {
+  if (!c) return;
+  $("climbLog").innerHTML = (S.climb ? `<b>되돌아가며 진화 중 · ${c.total - c.left + 1}/${c.total}바퀴 · 처음 평균 ${c.base.toFixed(1)}</b><br>` : "") + c.log.join("<br>");
+}
+function startAuto() { if (!db) return; S.auto = S.autoN; S.autoWasOn = true; showPreview(false); $("autoRunBtn").textContent = "멈추기"; S.running ? null : finish(); }
+function stopAuto(user) {
+  if (S.climb && !user) { S.auto = 0; S.autoWasOn = false; climbRound().catch(e => { endClimb("오류로 멈춤: " + (e && e.message || e)); fail(e); }); return; }   // a round is done: decide, go on
+  if (S.climb) { S.climb.log.push("멈춤: 사용자가 멈췄어요 (마지막 바퀴의 세대는 남아 있어요)"); const c = S.climb; setSigma(c.sigma0); S.climb = null; $("climbBtn").textContent = "되돌아가며 자동 진화"; showClimb(c); }
+  S.auto = 0; S.autoWasOn = false; showPreview(true); $("autoRunBtn").textContent = "자동으로 진화시키기";
+  if (S.running) return syncPicks();                         // the generation in progress finishes and draws itself
+  render(); finalize();                                       // draw the last generation, save
+}
+const past = () => S.gen < S.cur;
+function viewGen(g) {
+  if (S.auto || S.testing || g === S.gen) return;
+  S.running = false; S.focus = null; loadGeneration(g, true);
+}
+// go on from a past generation: the later generations are deleted (download the .db first to keep them)
+function branchHere() {
+  const g = S.gen;
+  if (!past() || S.running || S.testing) return;
+  if (!confirm(`${g + 1}~${S.cur}세대 기록이 지워지고 ${g}세대부터 다시 진화해요. 지금 기록을 남기려면 먼저 ".db 내려받기"를 해 두세요. 계속할까요?`)) return;
+  db.run("DELETE FROM worms WHERE gen > ?", [g]);
+  db.run("DELETE FROM parents WHERE child NOT IN (SELECT id FROM worms)");
+  db.run("DELETE FROM plays WHERE game > ? OR worm NOT IN (SELECT id FROM worms)", [g]);
+  db.run("DELETE FROM picks WHERE gen >= ?", [g]);
+  db.run("DELETE FROM tests WHERE worm NOT IN (SELECT id FROM worms)");
+  db.run("DELETE FROM meta WHERE key LIKE 'seedoff:%' AND CAST(substr(key, 9) AS INTEGER) > ?", [g]);
+  setMeta("gen", g); persist(); S.focus = null;
+  loadGeneration(g, true);
+}
+// ---- retest one worm on 20 fixed games never used by evolution (evolution uses seeds 1000+gen, 101000+gen, 201000+gen)
+const TEST_SEEDS = Array.from({ length: 20 }, (_, k) => 900000 + k);
+function runLocal(jobs, onProgress) {                        // without workers: one game per tick on this thread
+  return new Promise((resolve, reject) => {
+    const out = []; let i = 0;
+    const tick = () => { try {
+      const j = jobs[i], A = makeArena(j.stage, j.seed, j.genes); while (!A.done) step(A);
+      out.push(A); i++; onProgress && onProgress(i / jobs.length * STEPS);
+      if (i < jobs.length) setTimeout(tick, 0); else resolve(out);
+    } catch (e) { reject(e); } };
+    setTimeout(tick, 0);
+  });
+}
+async function testWorm(id) {
+  if (S.running || S.auto || S.testing) return;
+  const stage = meta("stage"), genes = genesOf(id), jobs = TEST_SEEDS.map(seed => ({ stage, seed, genes }));
+  S.testing = true; syncPicks();
+  const prog = t => $("testNote").textContent = `시험 중 ${Math.round(t / STEPS * 100)}%`;
+  prog(0);
+  try {
+    let res;
+    if (POOL.ok) { try { res = await runPool(jobs, prog); } catch (e) { poolFailed(e); } }
+    if (!res) res = await runLocal(jobs, prog);
+    const sc = res.map(score), n = sc.length, mean = sc.reduce((a, b) => a + b, 0) / n;
+    const sd = Math.sqrt(sc.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1)), se = sd / Math.sqrt(n);
+    db.run("DELETE FROM tests WHERE worm=? AND stage=?", [id, stage]);
+    db.run("INSERT INTO tests VALUES (?,?,?,?,?,?,?,?)", [id, stage, n, mean, se, Math.min(...sc), Math.max(...sc), new Date().toISOString()]);
+    persist();
+  } catch (e) { $("testNote").textContent = "시험 실패: " + (e && e.message || e); }
+  S.testing = false; syncPicks(); drawTests();
+}
+function testText(t) { return `20판 평균 <b>${t.mean.toFixed(1)}</b> ± ${t.se.toFixed(1)} (최저 ${t.lo}, 최고 ${t.hi})`; }
+function drawTests() {
+  const rows = q("SELECT t.*, w.name, w.gen FROM tests t JOIN worms w ON w.id=t.worm WHERE t.stage=? ORDER BY t.mean DESC", [meta("stage")]);
+  const el = $("testList");
+  if (!rows.length) { el.textContent = "아직 없어요."; return; }
+  el.innerHTML = rows.map((t, i) => `<div><button class="link" data-gen="${t.gen}" data-id="${t.worm}">${i + 1}. 선충 ${t.name} (${t.gen}세대)</button> · ${testText(t)}</div>`).join("");
+  el.querySelectorAll("button").forEach(b => b.onclick = () => { viewGen(+b.dataset.gen); S.focus = +b.dataset.id; syncPicks(); drawTree(); });
+}
+function togglePick(id) {
+  S.focus = id;                                              // a click always shows the worm (and its 20-game test)
+  if (S.picked.has(id)) S.picked.delete(id); else if (S.picked.size < 3 && !past()) S.picked.add(id);
+  syncPicks(); drawTree();
+  if (!S.picked.has(id) && S.picked.size >= 3 && !past()) flash("부모는 3마리까지 고를 수 있어요");
+}
+function flash(msg) { $("info").textContent = msg; }
+function syncPicks() {
+  (S.cells || []).forEach((c, i) => { const id = S.worms[i].id; c.classList.toggle("picked", S.picked.has(id)); c.classList.toggle("focus", S.focus === id); });
+  const busy = S.auto > 0 || !!S.testing;
+  $("nextBtn").disabled = S.running || !S.picked.size || busy || past();
+  $("autoRunBtn").disabled = !!S.testing || (past() && !S.autoWasOn) || !!S.climb;
+  $("climbBtn").disabled = !!S.testing || (!S.climb && (past() || S.auto > 0)); for (const b of $("climbSeg").children) b.disabled = !!S.climb; for (const b of $("sigmaSeg").children) b.disabled = !!S.climb;
+  for (const b of $("autoSeg").children) b.disabled = S.auto > 0 || !!S.climb;
+  for (const id of ["autoBtn", "clearBtn", "newBtn", "replayBtn", "loadBtn", "genSel", "backBtn", "branchBtn"]) $(id).disabled = busy;
+  $("testRow").hidden = !S.focus; $("testBtn").disabled = S.running || busy;
+  if (S.focus && !S.testing) { const t = q("SELECT * FROM tests WHERE worm=? AND stage=?", [S.focus, meta("stage")])[0]; $("testNote").innerHTML = t ? "지난 시험: " + testText(t) : "처음 보는 판 20판으로 다시 시험해요"; }
+  $("nextHint").textContent = S.climb ? `되돌아가며 진화 중 · ${S.climb.total - S.climb.left + 1}/${S.climb.total}바퀴 · 이 바퀴 남은 ${S.auto}세대` : past() && !S.autoWasOn ? "지난 세대예요. 위의 \"여기서 다시 진화\"를 누르면 이 세대부터 이어 갈 수 있어요" : S.autoWasOn ? `자동 진화 중 · 남은 ${S.auto}세대` : S.running ? "게임이 끝나면 누를 수 있어요" : !S.picked.size ? "위 칸에서 부모를 1~3마리 눌러 고르거나 \"점수대로 고르기\"를 눌러 주세요 (가계도 점은 보기만 해요)" : "";
+  showInfo();
+}
+function showInfo() {
+  if (!S.focus) { $("info").textContent = S.picked.size ? `부모 ${S.picked.size}마리를 골랐어요.` : ""; return; }
+  const w = q("SELECT * FROM worms WHERE id=?", [S.focus])[0], p = q("SELECT game, COUNT(*) n, ROUND(AVG(score), 1) score, ROUND(AVG(eaten), 1) eaten, ROUND(AVG(caught), 1) caught, ROUND(AVG(steps)) steps FROM plays WHERE worm=? GROUP BY game ORDER BY game DESC LIMIT 1", [S.focus])[0];
+  const par = q("SELECT w.name FROM parents p JOIN worms w ON w.id=p.parent WHERE p.child=?", [S.focus]).map(r => r.name);
+  $("info").innerHTML = `선충 <b>${w.name}</b> · ${w.gen}세대 · 부모 ${par.length ? par.join(", ") : "없음(출발)"}` +
+    (w.sigma != null ? ` · 변이 ${w.sigma}` : "") + (p ? ` · ${p.game}세대 점수 <b>${p.score}</b>${p.n > 1 ? ` (${p.n}판 평균)` : ""} (먹이 ${p.eaten}, 잡힘 ${p.caught}, ${p.steps}걸음)` : "");
+}
+function nextGeneration() {
+  const parents = [...S.picked], r = rng((Date.now() ^ (S.gen * 7919)) >>> 0), gen = S.gen + 1;
+  parents.forEach(id => db.run("INSERT INTO picks VALUES (?,?)", [S.gen, id]));
+  // the parents themselves come along unchanged (as the server's elites do), the rest are mutated copies, round-robin
+  let slot = 0;
+  for (const id of parents) {
+    const g = genesOf(id);
+    db.run("INSERT INTO worms (gen, slot, sigma, name, created, genes) VALUES (?,?,?,?,?,?)", [gen, slot, 0, `${gen}-${slot + 1}`, new Date().toISOString(), bytesOf(g)]);
+    db.run("INSERT INTO parents VALUES (?,?)", [db.exec("SELECT last_insert_rowid()")[0].values[0][0], id]); slot++;
+  }
+  for (let k = 0; slot < N; k++, slot++) {
+    const pid = parents[k % parents.length], g = mutate(genesOf(pid), S.sigma, r);
+    db.run("INSERT INTO worms (gen, slot, sigma, name, created, genes) VALUES (?,?,?,?,?,?)", [gen, slot, S.sigma, `${gen}-${slot + 1}`, new Date().toISOString(), bytesOf(g)]);
+    db.run("INSERT INTO parents VALUES (?,?)", [db.exec("SELECT last_insert_rowid()")[0].values[0][0], pid]);
+  }
+  setMeta("gen", gen); S.focus = null; if (!S.auto || gen % 10 === 0) persist();
+  loadGeneration(gen, S.auto > 0);
+}
+function autoPick(force) {
+  if (!db) return;
+  if (S.running || (S.auto && !force)) return;
+  const ranked = S.worms.map((w, i) => [w.id, S.scores[i] ?? score(S.arenas[i])]).sort((a, b) => b[1] - a[1]);
+  S.picked = new Set(ranked.slice(0, 3).map(x => x[0])); S.focus = ranked[0][0]; syncPicks(); drawTree();
+}
+
+// ---- chart: best and mean per generation
+function drawChart() {
+  const cv = $("chart"), ctx = cv.getContext("2d"), css = getComputedStyle(document.documentElement);
+  const rows = q("SELECT g gen, MAX(m) best, AVG(m) mean FROM (SELECT game g, worm, AVG(score) m FROM plays GROUP BY game, worm) GROUP BY g ORDER BY g");
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const L = 40, R = 10, T = 10, B = 26, W = cv.width - L - R, H = cv.height - T - B;
+  S.chartRows = rows;
+  const sel = $("genSel"), cur = +(meta("gen") || 0);
+  if (sel.options.length !== cur + 1) { sel.innerHTML = ""; for (let g = 0; g <= cur; g++) sel.append(new Option(`${g}세대`, g)); }
+  sel.value = S.gen;
+  if (!rows.length) return;
+  const lo = Math.min(0, ...rows.map(r => r.mean)), hi = Math.max(1, ...rows.map(r => r.best)), n = Math.max(1, rows.length - 1);
+  const X = i => L + (rows.length === 1 ? W / 2 : i / n * W), Y = v => T + H - (v - lo) / (hi - lo) * H;
+  ctx.strokeStyle = css.getPropertyValue("--line"); ctx.fillStyle = css.getPropertyValue("--muted"); ctx.font = "12px sans-serif"; ctx.lineWidth = 1;
+  for (const v of [lo, (lo + hi) / 2, hi]) { ctx.beginPath(); ctx.moveTo(L, Y(v)); ctx.lineTo(L + W, Y(v)); ctx.stroke(); ctx.fillText(Math.round(v), 4, Y(v) + 4); }
+  const vi = rows.findIndex(r => r.gen === S.gen);
+  if (vi >= 0 && rows.length > 1) { ctx.strokeStyle = css.getPropertyValue("--pick"); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X(vi), T); ctx.lineTo(X(vi), T + H); ctx.stroke(); }
+  S.chartX = X;
+  ctx.fillText("0세대", L, cv.height - 6); if (rows.length > 1) { const t = `${rows[rows.length - 1].gen}세대`; ctx.fillText(t, L + W - ctx.measureText(t).width, cv.height - 6); }
+  for (const [key, c, wdt] of [["mean", "--mean", 2], ["best", "--best", 3]]) {
+    ctx.strokeStyle = css.getPropertyValue(c); ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = wdt;
+    ctx.beginPath(); rows.forEach((r, i) => i ? ctx.lineTo(X(i), Y(r[key])) : ctx.moveTo(X(i), Y(r[key]))); ctx.stroke();
+    rows.forEach((r, i) => { ctx.beginPath(); ctx.arc(X(i), Y(r[key]), wdt + 1, 0, 7); ctx.fill(); });
+  }
+}
+// ---- family tree: one column per generation, a dot per worm (bigger = higher score), lines parent -> child;
+// clicking a dot highlights its ancestors
+function drawTree() {
+  const svg = $("tree"), css = getComputedStyle(document.documentElement);
+  const worms = q("SELECT w.id, w.gen, w.slot, w.name, (SELECT ROUND(AVG(score), 1) FROM plays p WHERE p.worm=w.id AND p.game=w.gen) s FROM worms w");
+  const links = q("SELECT child, parent FROM parents"), gens = Math.max(0, ...worms.map(w => w.gen)) + 1;
+  const DX = 54, DY = 22, PAD = 16, Wd = PAD * 2 + (gens - 1) * DX + 20, Hd = PAD * 2 + (N - 1) * DY;
+  svg.setAttribute("width", Math.max(Wd, 300)); svg.setAttribute("height", Hd); svg.setAttribute("viewBox", `0 0 ${Math.max(Wd, 300)} ${Hd}`);
+  const pos = new Map(worms.map(w => [w.id, [PAD + w.gen * DX, PAD + w.slot * DY]]));
+  const anc = new Set(); if (S.focus) { const stack = [S.focus]; while (stack.length) { const x = stack.pop(); if (anc.has(x)) continue; anc.add(x); links.filter(l => l.child === x).forEach(l => stack.push(l.parent)); } }
+  const hi = Math.max(1, ...worms.map(w => w.s || 0));
+  let h = "";
+  for (const l of links) { const a = pos.get(l.parent), b = pos.get(l.child); if (!a || !b) continue; const on = anc.has(l.child) && anc.has(l.parent);
+    h += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${on ? css.getPropertyValue("--pick") : css.getPropertyValue("--line")}" stroke-width="${on ? 2.5 : 1}"/>`; }
+  for (const w of worms) { const [x, y] = pos.get(w.id), on = anc.has(w.id), r = 3 + 4 * Math.max(0, w.s || 0) / hi;
+    h += `<circle data-id="${w.id}" cx="${x}" cy="${y}" r="${r.toFixed(1)}" fill="${on ? css.getPropertyValue("--pick") : css.getPropertyValue("--muted")}" style="cursor:pointer"><title>${w.name} · 점수 ${w.s ?? "-"}</title></circle>`; }
+  svg.innerHTML = h;
+  svg.querySelectorAll("circle").forEach(c => c.onclick = () => { S.focus = +c.dataset.id; drawTree(); syncPicks(); });
+}
+
+// ---- buttons
+$("newBtn").onclick = () => {
+  if (q("SELECT COUNT(*) n FROM worms")[0].n > N && !confirm("지금까지의 진화 기록이 지워져요. .db로 내려받아 두셨나요? 새로 시작할까요?")) return;
+  S.running = false; newEvolution($("stageSel").value, $("originSel").value);
+};
+$("nextBtn").onclick = () => {
+  const b = $("nextBtn"); b.disabled = true; $("status").textContent = "태어나는 중…";
+  setTimeout(() => { try { nextGeneration(); } catch (e) { fail(e); } }, 30);   // let the button repaint before the work
+};
+$("autoBtn").onclick = () => autoPick();
+$("backBtn").onclick = () => viewGen(S.cur);
+$("branchBtn").onclick = branchHere;
+$("genSel").onchange = () => viewGen(+$("genSel").value);
+$("testBtn").onclick = () => S.focus && testWorm(S.focus);
+$("chart").onclick = e => {
+  const rows = S.chartRows || [], cv = $("chart"); if (!rows.length || !S.chartX) return;
+  const x = (e.clientX - cv.getBoundingClientRect().left) * cv.width / cv.clientWidth;
+  let best = 0; rows.forEach((r, i) => { if (Math.abs(S.chartX(i) - x) < Math.abs(S.chartX(best) - x)) best = i; });
+  viewGen(rows[best].gen);
+};
+$("autoRunBtn").onclick = () => S.autoWasOn ? stopAuto(true) : startAuto();
+$("climbBtn").onclick = () => S.climb ? stopAuto(true) : startClimb();
+$("clearBtn").onclick = () => { S.picked.clear(); syncPicks(); };
+$("replayBtn").onclick = () => { S.running = false; setTimeout(play, 30); };
+for (const [segId, key] of [["speedSeg", "speed"], ["sigmaSeg", "sigma"], ["autoSeg", "autoN"], ["gamesSeg", "games"], ["climbSeg", "climbN"]])
+  $(segId).querySelectorAll("button").forEach(b => b.onclick = () => {
+    S[key] = +b.dataset.v; $(segId).querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    if (key === "games" && db) { setMeta("games", S.games); if (!S.running && S.arenas.length) finish(); }   // add the missing games to this generation now
+  });
+$("saveBtn").onclick = () => {
+  const blob = new Blob([db.export()], { type: "application/octet-stream" }), a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `worm-evolve-${meta("stage")}-gen${S.gen}.db`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$("loadBtn").onclick = () => $("fileIn").click();
+$("fileIn").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = new SQL.Database(new Uint8Array(await f.arrayBuffer()));
+    if (!d.exec("SELECT value FROM meta WHERE key='format'").length) throw new Error("선충 진화 파일이 아니에요");
+    db = d; await persist(); S.running = false; S.focus = null; loadGamesSetting();
+    loadGeneration(+(meta("gen") || 0), true); $("dbNote").textContent = `${f.name} 불러옴`;
+  } catch (err) { $("dbNote").textContent = "불러오기 실패: " + err.message; }
+  e.target.value = "";
+};
+
+let PUBLIC = {}, GENES = {};
+(async function init() {
+  [base, layout] = await Promise.all([fetch("brain/base.json").then(r => r.json()), fetch("brain/models/heaven_layout.json").then(r => r.json())]);
+  for (const m of Object.values(ORIGINS)) if (m.model) {
+    PUBLIC[m.model] = await fetch(`brain/models/${m.model}.json`).then(r => r.json());
+    // exact server genes (the public JSON holds decoded values, where clipped genes lose their value: same behaviour,
+    // but evolution should start from the real genes)
+    GENES[m.model] = await fetch(`models/${m.model}.genes.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+  }
+  template = PUBLIC.pgx_bfree_k200;                           // structure of a free-wiring worm (senses, neuron lists)
+  G = Math.max(...base.group) + 1;
+  for (const [k, v] of Object.entries(STAGES)) $("stageSel").append(new Option(v.name, k));
+  for (const [k, v] of Object.entries(ORIGINS)) $("originSel").append(new Option(v.name, k));
+  startPool();
+  SQL = await initSqlJs({ locateFile: f => `lib/${f}` });
+  const saved = await restore();
+  db = saved ? new SQL.Database(saved) : new SQL.Database();
+  db.run(SCHEMA);
+  loadGamesSetting();
+  if (!q("SELECT COUNT(*) n FROM worms")[0].n) newEvolution("pred1", "green");
+  else { loadGeneration(+(meta("gen") || 0), true); $("dbNote").textContent = "지난번 기록을 이어서 보여 줘요"; }
+  $("stageSel").value = meta("stage"); $("originSel").value = meta("origin");
+  window.__S = S; window.__q = q;
+})().catch(err => { $("status").textContent = "불러오기 실패: " + err.message; });
+</script>
+</body>
+</html>

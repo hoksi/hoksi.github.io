@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>원더보이 TAS 도구</title>
+<!-- 원더보이 TAS 도구 (2026-11-06). Unlisted page: not linked from the blog, noindex. No ROM here: the visitor
+     chooses their own wboy.zip, which stays in their browser. Emulator: MAME 0.285 (GPL-2.0+), build notes in build/. -->
+<style>
+  :root { --bg: #0b0f0d; --panel: #141b17; --line: #26332c; --ink: #e2ebe5; --muted: #8fa198; --gfp: #39e07f; --alert: #ff6b7f; --input: #6fb0ff; --pac: #ffd84a; color-scheme: dark; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, "Apple SD Gothic Neo", sans-serif; margin: 0; }
+  [hidden] { display: none !important; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; grid-template-columns: minmax(0, 720px) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 760px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+  .intro { grid-column: 1 / -1; display: grid; gap: 6px; }
+  .toprow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 1.3rem; }
+  .tag { font-size: .75rem; color: #000; background: var(--pac); border-radius: 999px; padding: 1px 8px; vertical-align: 3px; margin-left: 6px; }
+  .links { display: flex; gap: 14px; white-space: nowrap; }
+  .links a { color: var(--input); font-size: .9rem; }
+  .intro p { margin: 0; color: var(--muted); }
+  .intro p.lead { color: var(--ink); font-size: 1.05rem; }
+  .stage { display: grid; justify-items: center; min-width: 0; grid-template-columns: minmax(0, 1fr); }
+  .screen { width: 100%; max-width: 720px; background: #000; border: 1px solid var(--line); aspect-ratio: 4 / 3; display: grid; place-items: center; }
+  #canvas { width: 100% !important; height: 100% !important; image-rendering: pixelated; display: block; }   /* SDL sets its own size inline */
+  .waiting { color: var(--muted); font-size: .9rem; padding: 16px; text-align: center; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 12px; min-width: 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .label { font-size: .72rem; letter-spacing: .08em; color: var(--muted); }
+  .badge { padding: 3px 9px; border-radius: 999px; font-size: .78rem; font-weight: 700; background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+  .badge.wait { color: var(--muted); }
+  .badge.live { background: var(--alert); border-color: var(--alert); color: #fff; }
+  .badge.live::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #fff; margin-right: 6px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .drop { border: 2px dashed var(--line); border-radius: 8px; padding: 10px 12px; font-size: .88rem; display: grid; gap: 6px; }
+  .drop p { margin: 0; }
+  .drop.over { border-color: var(--pac); }
+  .cap { font-size: .8rem; color: var(--muted); margin: 0; }
+  .err { color: var(--alert); margin: 0; }
+  button, .filebtn { font: inherit; border-radius: 6px; padding: 5px 10px; cursor: pointer; background: #34483e; border: 1px solid #5c7a6a; color: #fff; font-weight: 600; }
+  button:hover, .filebtn:hover { background: #41594d; border-color: var(--gfp); }
+  .keys { border: 1px solid var(--pac); background: rgba(255, 216, 74, .08); border-radius: 8px; padding: 10px 12px; line-height: 1.9; }
+  kbd { display: inline-block; min-width: 1.6em; text-align: center; padding: 0 6px; margin-right: 3px; border: 1px solid var(--pac); border-bottom-width: 3px; border-radius: 5px; background: #1a1708; color: #fff; font: 700 .95rem ui-monospace, monospace; }
+  .bar { width: 100%; max-width: 720px; margin-top: 8px; background: var(--panel); border: 1px solid var(--input); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
+  .brow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .bar button { padding: 4px 9px; }
+  .sep { width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
+  .chip input { display: none; }
+  .chip span { display: inline-block; padding: 3px 10px; border-radius: 999px; border: 1px solid #5c7a6a; cursor: pointer; font-weight: 600; user-select: none; }
+  .chip input:checked + span { background: var(--input); border-color: var(--input); color: #000; }
+  button:disabled { opacity: .45; cursor: default; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+  .tabs button { background: none; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: var(--muted); }
+  .tabs button[aria-pressed="true"] { background: #1c2621; border-color: var(--line); color: var(--ink); }
+  .tabpane { display: grid; gap: 8px; }
+  .tas { border: 1px solid var(--input); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; }
+  .tas label { font-size: .88rem; }
+  .roll { overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: #0f1512; }
+  #rollCv { display: block; width: 100%; height: 130px; cursor: crosshair; touch-action: none; }
+  #edTa { width: 100%; font: 12px/1.4 ui-monospace, monospace; background: #0f1512; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+  button.main { background: #2f6fb3; border-color: #6fb0ff; }
+  .lt { border-collapse: collapse; font-size: .82rem; width: 100%; }
+  .lt th, .lt td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; white-space: nowrap; }
+  .lt td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .lt button { padding: 2px 7px; font-size: .78rem; }
+  input:not([type]) { font: inherit; background: #0f1512; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  .slot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .worm { border-left: 3px solid var(--gfp); padding-left: 10px; color: var(--muted); font-size: .88rem; }
+  pre { margin: 0; color: var(--muted); font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; max-height: 320px; overflow: auto; }
+  footer { color: var(--muted); font-size: .8rem; }
+  footer p { margin: 0 0 6px; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <div class="toprow"><h1>원더보이 TAS 도구<span class="tag">실험</span></h1>
+</div>
+    <p class="lead">원더보이(1986, 세가 시스템 1)를 브라우저에서 한 프레임씩 멈추고 되감으며 플레이하는 TAS(Tool-Assisted Speedrun) 도구예요.</p>
+    <p>원더보이 롬은 이 페이지에 들어 있지 않아요. 가지고 있는 롬 파일을 선택하면 설치 없이 브라우저에서 돌아가요.</p>
+  </header>
+  <div class="stage">
+    <div class="screen" id="screen"><div class="waiting" id="waiting">롬 파일을 선택하면 여기에 게임이 나와요.</div><canvas id="canvas" width="512" height="224" hidden></canvas></div>
+    <!-- TAS tool bar under the game (UI tidy-up 2026-11-06, user: "UI 정리도 진행 부탁해") -->
+    <div class="bar" id="tas" hidden>
+      <div class="brow">
+        <span class="badge" id="tasState">-</span>
+        <button id="tPause" title="Space">⏸ 멈춤</button><button id="tRun" title="Space">▶ 계속</button>
+        <button id="tBack" title=",">↶ 뒤로 <span id="undoN">0</span></button>
+        <span class="sep"></span>
+        <button data-step="1" title=".">+1</button><button data-step="10" title="Shift + .">+10</button><button data-step="60" title="/">+60</button>
+        <span class="sep"></span>
+        <button data-tap="K" title="K (멈춤 중)">점프 1번</button><button data-tap="J" title="J (멈춤 중)">도끼 1번</button>
+      </div>
+      <div class="brow">
+        <span class="cap">누른 채로</span>
+        <label class="chip" title="← (멈춤 중)"><input type="checkbox" data-k="L"><span>←</span></label><label class="chip" title="→ (멈춤 중)"><input type="checkbox" data-k="R"><span>→</span></label>
+        <label class="chip"><input type="checkbox" data-k="J"><span>도끼</span></label><label class="chip"><input type="checkbox" data-k="K"><span>점프</span></label>
+        <span class="sep"></span>
+        <span class="cap">슬롯 1</span><button data-save="1">저장</button><button data-load="1">불러오기</button>
+        <span class="cap">슬롯 2</span><button data-save="2">저장</button><button data-load="2">불러오기</button>
+        <span class="sep"></span>
+        <button id="tFree">손으로 하기</button>
+      </div>
+      <p class="cap" id="recNote"></p>
+      <p class="cap">단축키(멈춤 중): Space 멈춤/계속 · <b>.</b> +1 · Shift+<b>.</b> +10 · <b>/</b> +60 · <b>,</b> 뒤로 · K 점프 1번 · J 도끼 1번 · ← → 누른 채로 켜기/끄기</p>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="row"><span class="label">상태</span><span class="badge wait" id="status">불러오는 중…</span></div>
+    <div class="drop" id="drop" hidden>
+      <p><b>롬 파일 선택</b> — 가지고 있는 원더보이 롬(wboy.zip, MAME 0.285용)을 선택해 주세요. 다른 판(wboyo, wboy2 등)은 부모 롬이 함께 든 zip이어야 해요.</p>
+      <p class="row"><label class="filebtn">롬 파일 선택<input type="file" id="romFile" accept=".zip,application/zip" hidden></label></p>
+      <p class="cap">파일은 이 브라우저 안에서만 쓰이고 어디에도 올라가지 않아요. 다음에 오면 다시 선택하지 않아도 되게 이 브라우저에만 저장해 둬요.</p>
+      <p class="err" id="romErr" hidden></p>
+    </div>
+    <div class="keys" id="keys" hidden><kbd>A</kbd><kbd>D</kbd> 이동 · <kbd>J</kbd> 도끼 · <kbd>K</kbd> 점프 · <kbd>5</kbd> 동전 · <kbd>1</kbd> 시작<br><span class="cap">게임 화면을 한 번 누른 뒤 키보드로 조작하세요.</span></div>
+    <div class="row">
+      <button id="restart" hidden>새 게임</button>
+      <button id="forgetRom" hidden>저장된 롬 지우기</button>
+    </div>
+    <div class="tabs" id="tabs" hidden>
+      <button data-tab="lib" aria-pressed="true">보관함</button><button data-tab="files">파일</button><button data-tab="logTab">기록</button>
+    </div>
+    <div class="tabpane" id="lib" hidden>
+      <div class="row"><span class="cap" id="libNote"></span></div>
+      <div class="row"><input id="recName" placeholder="기록 이름 (예: 1-1 첫 시도)" style="flex:1;min-width:120px">
+        <button id="recKeep">지금 기록 보관</button></div>
+      <input id="recMemo" placeholder="메모 (선택)">
+      <div style="overflow-x:auto"><table class="lt" id="recList"></table></div>
+      <div class="row"><span class="cap">슬롯 보관</span><button data-keep="1">슬롯 1</button><button data-keep="2">슬롯 2</button></div>
+      <div style="overflow-x:auto"><table class="lt" id="slotList"></table></div>
+    </div>
+    <div class="tabpane" id="files" hidden>
+      <div class="slot"><span class="cap">슬롯 1</span><button data-down="1">내려받기</button><label class="filebtn">올리기<input type="file" data-up="1" accept=".sta" hidden></label></div>
+      <div class="slot"><span class="cap">슬롯 2</span><button data-down="2">내려받기</button><label class="filebtn">올리기<input type="file" data-up="2" accept=".sta" hidden></label></div>
+      <div class="row"><span class="cap">입력 기록</span><button id="recDown">내려받기 (.tas)</button>
+        <label class="filebtn">재생<input type="file" id="recPlay" accept=".txt,.tas" hidden></label></div>
+      <div class="row"><span class="cap">보관함 전체</span><button id="dbDown">.db 내려받기</button><label class="filebtn">.db 올리기<input type="file" id="dbUp" accept=".db,.sqlite" hidden></label></div>
+      <p class="cap">보관함은 이 브라우저에 자동 저장돼요. 다른 기기로 옮기거나 서버에서 보려면 .db로 내려받으세요.</p>
+    </div>
+    <div class="tabpane" id="logTab" hidden><pre id="log"></pre></div>
+  </div>
+</div>
+<section class="wrap" id="editor" hidden><div class="panel" style="grid-column:1/-1">
+  <div class="row"><span class="label">입력 편집기</span><span class="cap" id="edInfo"></span></div>
+  <div class="row">
+    <button id="edCur">지금 기록 열기</button>
+    <button id="edZoomIn">확대</button><button id="edZoomOut">축소</button>
+    <button id="edAdd">끝에 60프레임 추가</button><button id="edCut">커서 뒤 자르기</button>
+    <button id="edText">글자로 보기</button>
+  </div>
+  <div class="roll" id="roll"><canvas id="rollCv" height="130"></canvas></div>
+  <input type="range" id="rollPos" min="0" max="0" value="0" style="width:100%">
+  <div id="edTextBox" hidden><textarea id="edTa" rows="10" spellcheck="false"></textarea>
+    <div class="row"><button id="edTaApply">글자 내용 적용</button><span class="cap">한 줄 = "키 프레임수". 키: L ← · R → · J 도끼 · K 점프 · C 동전 · S 시작 · "-" 없음 (예: RK 10)</span></div></div>
+  <div class="row">
+    <button class="main" id="edPlay">재생해서 보기</button>
+    <input id="edName" placeholder="새 이름 (보관할 때)" style="min-width:160px">
+    <button id="edKeep">보관함에 새 기록으로</button>
+    <button id="edDown">.tas 내려받기</button>
+  </div>
+  <p class="cap">칸을 누르거나 끌어서 키를 켜고 꺼요. 노란 줄 = 커서(누른 칸의 프레임), 빨간 줄 = 처음 고친 프레임. "재생해서 보기"는 고친 곳 앞의 이 세션 슬롯이 있으면 거기서부터, 없으면 전원부터 다시 재생해요(전원부터는 페이지를 새로 불러요).</p>
+</div></section>
+<footer class="wrap"><div style="grid-column:1/-1">
+  <p>Wonder Boy © 1986 Sega / Escape. 롬은 이 페이지에 들어 있지 않으며, 배포하지 않아요. 비상업적 개인 실험이에요.</p>
+  <p>에뮬레이터: <a href="https://github.com/mamedev/mame/tree/mame0285" target="_blank" rel="noopener">MAME 0.285</a> (GPL-2.0+), Emscripten으로 sega/system1.cpp 드라이버만 빌드 (<a href="build/README.md">빌드 방법과 소스 변경</a>). 기록 보관함: <a href="https://github.com/sql-js/sql.js" target="_blank" rel="noopener">sql.js</a> (MIT).</p>
+</div></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = t => { const el = $("log"); el.textContent = (t + "\n" + el.textContent).slice(0, 4000); };
+function setStatus(kind, text) { const b = $("status"); b.className = "badge " + kind; b.textContent = text; }
+
+// keys sent by the page (same trick as the Super Tank page: a KeyboardEvent with keyCode set)
+const KEYS = { coin: ['Digit5', '5', 53], start: ['Digit1', '1', 49], reset: ['F3', 'F3', 114] };
+function key(name, down) {
+  const [code, k, kc] = KEYS[name];
+  const e = new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: k, bubbles: true, cancelable: true });
+  Object.defineProperty(e, 'keyCode', { get: () => kc }); Object.defineProperty(e, 'which', { get: () => kc });
+  window.dispatchEvent(e);
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const tap = async (name, ms = 150) => { key(name, true); await sleep(ms); key(name, false); await sleep(400); };
+// coin, start, then pause (user 11-06: "동전 넣고 시작 버튼 누른 다음에 일시 정지 상태로"): the TAS run starts right there
+async function newGame(fresh = false) {
+  if (!fresh) { tas("free"); await tap("reset"); await sleep(5000); }
+  await tap("coin"); await tap("start"); tas("pause"); log("동전 넣고 시작 → 멈춤");
+}
+
+// ---- the ROM: chosen by the visitor, kept only in this browser
+function romDB(op, data) {
+  return new Promise(res => {
+    try {
+      const rq = indexedDB.open("worm-arcade", 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore("roms");
+      rq.onerror = () => res(null);
+      rq.onsuccess = () => {
+        try {
+          const tx = rq.result.transaction("roms", op === "get" ? "readonly" : "readwrite"), st = tx.objectStore("roms");
+          const r = op === "get" ? st.get("wboy") : op === "put" ? st.put(data, "wboy") : st.delete("wboy");
+          r.onsuccess = () => res(op === "get" ? r.result || null : true); r.onerror = () => res(null);
+        } catch (e) { res(null); }
+      };
+    } catch (e) { res(null); }
+  });
+}
+// the zip's first program chip name tells the set (MAME 0.285 system1.cpp); the parent wboy is tried first, so a
+// merged zip that holds every set runs set 1
+const SETS = [["wboy", "epr-7489.116"], ["wboyo", "epr-7532.116"], ["wboy2", "epr-7587.129"], ["wboy2u", "ic129_02.bin"], ["wboy3", "wb_1"],
+  ["wboy4", "epr-7622.ic1"], ["wboy5", "wb1.ic116"], ["wboy6", "epr-7731.129"], ["wboyu", "ic116_89.bin"], ["wbdeluxe", "wbd1.bin"]];
+function whichSet(buf) {
+  const u = new Uint8Array(buf); if (u.length < 4 || u[0] !== 0x50 || u[1] !== 0x4b) return null;
+  const s = new TextDecoder("latin1").decode(u);
+  for (const [set, chip] of SETS) if (s.includes(chip)) return set;
+  return null;
+}
+async function useFile(f) {
+  const buf = await f.arrayBuffer(), set = whichSet(buf);
+  if (!set) { $("romErr").textContent = "원더보이 롬(wboy.zip)이 아닌 것 같아요."; $("romErr").hidden = false; return; }
+  await romDB("put", buf);
+  if (started) { location.reload(); return; }        // MAME already ran (and stopped on a bad ROM): start fresh with the new file
+  startMAME(buf, set);
+}
+function armDrop() {
+  const d = $("drop"); d.hidden = false; setStatus("", "롬 파일을 기다리는 중");
+  for (const t of ["dragenter", "dragover"]) document.addEventListener(t, e => { e.preventDefault(); d.classList.add("over"); });
+  for (const t of ["dragleave", "drop"]) document.addEventListener(t, e => { e.preventDefault(); d.classList.remove("over"); });
+  document.addEventListener("drop", e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) useFile(f); });
+  $("romFile").onchange = e => { const f = e.target.files[0]; if (f) useFile(f); };
+}
+let started = false, romBad = false;
+// 2026-11-06 (user: "방향키는 wasd 총알은 j 점프는 k 로 바꿔줘"): MAME's own key mapping (checked with MAME 0.285 natively:
+// the file is read and kept). In MAME's wboy, button 1 = attack (axe), button 2 = jump.
+const KEYCFG = `<?xml version="1.0"?>
+<mameconfig version="10"><system name="default"><input>
+<port type="P1_JOYSTICK_UP"><newseq type="standard">NONE</newseq></port>
+<port type="P1_JOYSTICK_DOWN"><newseq type="standard">NONE</newseq></port>
+<port type="P1_JOYSTICK_LEFT"><newseq type="standard">NONE</newseq></port>
+<port type="P1_JOYSTICK_RIGHT"><newseq type="standard">NONE</newseq></port>
+<port type="P1_BUTTON1"><newseq type="standard">NONE</newseq></port>
+<port type="P1_BUTTON2"><newseq type="standard">NONE</newseq></port>
+<port type="COIN1"><newseq type="standard">NONE</newseq></port>
+<port type="START1"><newseq type="standard">NONE</newseq></port>
+</input></system></mameconfig>`;
+// 2026-11-06 (input record): MAME's own key reading is switched off for the six inputs; the TAS script reads the keys
+// (A D J K 5 1) and sets the inputs itself, frame by frame, so what is recorded is exactly what the game got
+// (MAME ORs its live keys with a script's value, which made a replay drift)
+let TASLUA = "";
+// a record to play back: chosen with "기록 재생", kept in sessionStorage over one reload (MAME starts from power-on)
+let PLAY = null, PLAYID = null, PLAYED_EDIT = null;
+try { const pe = sessionStorage.getItem("wboy-edit"); sessionStorage.removeItem("wboy-edit"); if (pe) PLAYED_EDIT = JSON.parse(pe); } catch (e) {}
+try { PLAY = sessionStorage.getItem("wboy-play"); PLAYID = sessionStorage.getItem("wboy-play-id"); sessionStorage.removeItem("wboy-play"); sessionStorage.removeItem("wboy-play-id"); } catch (e) {}
+async function startMAME(buf, set) {
+  if (started) return; started = true;
+  TASLUA = await fetch("mame/wboy_tas.lua", { cache: "no-store" }).then(r => r.text());
+  $("drop").hidden = true; $("waiting").hidden = true; $("canvas").hidden = false;
+  setStatus("wait", "게임 켜는 중…"); log(`롬 확인 (${set}), MAME 시작`);
+  window.Module = {
+    arguments: [set, "-rompath", "/roms", "-sound", "none", "-skip_gameinfo", "-video", "soft", "-window", "-nomax", "-resolution", "512x224", "-cfg_directory", "/cfg", "-autoboot_script", "/tas/wboy_tas.lua", "-state_directory", "/sta"],
+    canvas: $("canvas"),
+    preRun: [() => { FS.mkdir("/tas"); FS.writeFile("/tas/wboy_tas.lua", TASLUA); if (PLAY) FS.writeFile("/tas/play.txt", PLAY); FS.mkdir("/cfg"); FS.writeFile("/cfg/default.cfg", KEYCFG); FS.mkdir("/roms"); FS.writeFile(`/roms/${set}.zip`, new Uint8Array(buf)); if (set !== "wboy") FS.writeFile("/roms/wboy.zip", new Uint8Array(buf)); }],
+    print: t => console.log(t), printErr: t => { console.log("ERR " + t); if (/NOT FOUND|WRONG CHECKSUMS|required files are missing/.test(t)) { romBad = true; log(t); } }, onAbort: e => log("MAME 멈춤: " + e),
+    onRuntimeInitialized: () => {
+      log("MAME 준비");
+      setTimeout(async () => {
+        if (romBad) { setStatus("wait", "롬이 맞지 않아요"); $("forgetRom").hidden = false; $("romErr").textContent = "롬 파일이 MAME 0.285의 원더보이와 맞지 않아요(기록 참고). 저장된 롬을 지우고 다른 파일로 해 보세요."; $("romErr").hidden = false; $("drop").hidden = false; return; }
+        setStatus("live", "실시간 · 지금 직접 플레이 중");
+        $("keys").hidden = false; $("restart").hidden = false; $("forgetRom").hidden = false; $("tas").hidden = false; $("tabs").hidden = false; showTab("lib"); $("editor").hidden = false; tasPoll(); if (PLAYED_EDIT) edOpen(PLAYED_EDIT.frames, PLAYED_EDIT.id, PLAYED_EDIT.first);
+        if (!PLAY) await newGame(true); else log("입력 기록 재생 중 (전원 켠 순간부터)");
+      }, 6000);
+    },
+  };
+  const s = document.createElement("script"); s.src = "mame/wboy.js"; document.body.appendChild(s);
+}
+// ---- TAS 1단계 (2026-11-06, user: "TAS 1단계 진행"): commands to the Lua script in MAME (mame/wboy_tas.lua) through
+// the emulator's in-memory files: /tas/cmd (one line, a new number each time), answers in /tas/out
+let tasSeq = 0;
+function tas(op, a = "", b = "") { try { FS.writeFile("/tas/cmd", `${++tasSeq} ${op} ${a} ${b}`.trim()); } catch (e) { log("TAS: " + e); } return tasSeq; }
+// wait until the Lua script has handled command number `seq` (its answer carries the last number it handled)
+const tasDone = async (seq, ms = 3000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const a = +FS.readFile("/tas/out", { encoding: "utf8" }).split(" ")[7]; if (a >= seq) { window.__TAS.msg = FS.readFile("/tas/out", { encoding: "utf8" }).split(" ")[4]; return window.__TAS.msg; } } catch (e) {} await sleep(30); } return null; };
+const tasKeys = () => [...document.querySelectorAll("#tas input[data-k]")].filter(x => x.checked).map(x => x.dataset.k).join("") || "-";
+function tasPoll() {
+  setInterval(() => {
+    let t = ""; try { t = FS.readFile("/tas/out", { encoding: "utf8" }); } catch (e) { return; }
+    const [frame, state, mode, hold, msg, base, playEnd, ack, undoN] = t.split(" ");
+    $("undoN").textContent = undoN || 0; $("tBack").disabled = !+undoN;
+    const how = mode === "play" ? `재생 ${frame}/${playEnd}` : mode === "tas" ? "TAS 입력 " + hold : "키보드";
+    $("tasState").textContent = `${frame}프레임 · ${state === "paused" ? "멈춤" : "진행"} · ${how}` + (msg === "empty" ? " · 빈 슬롯" : "") + (msg === "playdone" ? " · 재생 끝" : "") + (msg === "noundo" ? " · 더 뒤로 못 가요" : "");
+    $("recNote").textContent = +base ? `입력 기록: ${base}프레임(올린 슬롯)부터 ${frame - base}프레임. 전원부터 재생하려면 처음부터 기록해야 해요.` : `입력 기록: 전원 켠 순간부터 ${frame}프레임`;
+    window.__TAS = { frame: +frame, state, mode, hold, msg, base: +base, playEnd: +playEnd, ack: +ack };
+    if (state === "paused") setStatus("wait", "TAS · 멈춤"); else setStatus("live", mode === "tas" ? "TAS · 진행 중" : "실시간 · 지금 직접 플레이 중");
+  }, 100);
+}
+$("tPause").onclick = () => tas("pause");
+$("tRun").onclick = () => tas("run");
+$("tFree").onclick = () => tas("free");
+$("tBack").onclick = () => tas("back");      // back to where the last step / tap started (up to 10)
+document.querySelectorAll("#tas [data-step]").forEach(bt => bt.onclick = () => tas("step", bt.dataset.step, tasKeys()));
+document.querySelectorAll("#tas [data-tap]").forEach(bt => bt.onclick = () => tas("tap", bt.dataset.tap));
+document.querySelectorAll("#tas input[data-k]").forEach(x => x.onchange = () => tas("hold", tasKeys()));
+document.querySelectorAll("#tas [data-save]").forEach(bt => bt.onclick = () => { tas("save", bt.dataset.save); log(`슬롯 ${bt.dataset.save} 저장`); });
+document.querySelectorAll("#tas [data-load]").forEach(bt => bt.onclick = () => { tas("load", bt.dataset.load); log(`슬롯 ${bt.dataset.load} 불러오기`); });
+// slots as files: the emulator's own state files (MAME 0.285, this wboy set only)
+const save = (data, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data])); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
+document.querySelectorAll("#tas [data-down]").forEach(bt => bt.onclick = () => {
+  const n = bt.dataset.down;
+  try { save(FS.readFile(`/sta/wboy/tas_${n}.sta`), `wboy-slot${n}.sta`); log(`슬롯 ${n} 내려받기`); }
+  catch (e) { log(`슬롯 ${n}이 비어 있어요`); }
+});
+document.querySelectorAll("#tas input[data-up]").forEach(inp => inp.onchange = async e => {
+  const f = e.target.files[0], n = inp.dataset.up; if (!f) return;
+  const buf = new Uint8Array(await f.arrayBuffer());
+  for (const d of ["/sta", "/sta/wboy"]) { try { FS.mkdir(d); } catch (err) {} }
+  FS.writeFile(`/sta/wboy/tas_${n}.sta`, buf); tas("upload", n); log(`슬롯 ${n}에 ${f.name} 올리고 불러오기`); e.target.value = "";
+});
+// the input record: "KEYS COUNT" lines from frame 1 (L R J K C S, "-" = none), dumped by the Lua script
+const waitMsg = (m, ms = 3000) => new Promise(res => { const t0 = Date.now(), iv = setInterval(() => { if ((window.__TAS || {}).msg === m || Date.now() - t0 > ms) { clearInterval(iv); res((window.__TAS || {}).msg === m); } }, 50); });
+async function getRecord() {                        // -> {body, frames, start, text} of the record up to the frame shown
+  if (await tasDone(tas("dump")) !== "dumped") return null;
+  const T = window.__TAS, body = FS.readFile("/tas/movie.txt", { encoding: "utf8" });
+  const start = T.base ? "frame-" + T.base : "power-on", frames = T.frame - T.base;
+  return { body, frames, start, text: `# wonderboy-tas wboy mame-0.285 start=${start} frames=${frames}\n` + body };
+}
+$("recDown").onclick = async () => {
+  const r = await getRecord(); if (!r) return log("기록을 못 읽었어요");
+  save(r.text, `wboy-${r.frames}f.tas`); log(`입력 기록 내려받기 (${r.frames}프레임)`);
+};
+
+$("recPlay").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text();
+  if (/start=frame-/.test(text) && !confirm("이 기록은 전원이 아니라 올린 슬롯에서 시작한 기록이라 처음부터 재생하면 어긋나요. 그래도 재생할까요?")) return;
+  playText(text, null);
+};
+function playText(text, id) {
+  try { sessionStorage.setItem("wboy-play", text); if (id) sessionStorage.setItem("wboy-play-id", String(id)); } catch (err) { return log("재생 준비 실패: " + err); }
+  location.reload();
+}
+
+// ---- 기록 보관함 (2026-11-06, user: "입력 기록을 sqlite 에 넣어서 db로 관리" -> "ㅇㅇ 진행 부탁해"): sql.js (lib/,
+// MIT), the whole .db kept in IndexedDB of this browser, downloadable / uploadable.
+// records: one input record each ("KEYS COUNT" lines, the .tas body); parent + branch_frame when it was made by
+// playing a kept record and going on from somewhere in it. slots: kept save states (58 KB each).
+const SCHEMA = `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY, name TEXT, memo TEXT, created TEXT, frames INTEGER,
+  start TEXT, parent INTEGER REFERENCES records(id), branch_frame INTEGER, inputs TEXT);
+CREATE TABLE IF NOT EXISTS slots (id INTEGER PRIMARY KEY, name TEXT, created TEXT, frame INTEGER,
+  record INTEGER REFERENCES records(id), data BLOB);`;
+let SQL = null, DB = null;
+const dbq = (sql, args = []) => { const st = DB.prepare(sql); st.bind(args); const out = []; while (st.step()) out.push(st.getAsObject()); st.free(); return out; };
+function idb(op, data) {
+  return new Promise(res => {
+    try {
+      const rq = indexedDB.open("wboy-tas", 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore("db");
+      rq.onerror = () => res(null);
+      rq.onsuccess = () => { try {
+        const tx = rq.result.transaction("db", op === "get" ? "readonly" : "readwrite"), st = tx.objectStore("db");
+        const r = op === "get" ? st.get("main") : st.put(data, "main");
+        r.onsuccess = () => res(op === "get" ? r.result || null : true); r.onerror = () => res(null);
+      } catch (e) { res(null); } };
+    } catch (e) { res(null); }
+  });
+}
+const persist = () => idb("put", DB.export());
+async function openLib() {
+  try {
+    await new Promise((ok, bad) => { const sc = document.createElement("script"); sc.src = "lib/sql-wasm.js"; sc.onload = ok; sc.onerror = bad; document.head.append(sc); });
+    SQL = await initSqlJs({ locateFile: f => `lib/${f}` });
+    const saved = await idb("get");
+    DB = saved ? new SQL.Database(new Uint8Array(saved)) : new SQL.Database();
+    DB.run(SCHEMA); DB.run("INSERT OR IGNORE INTO meta VALUES ('format', 'wonderboy-tas 1'), ('game', 'wboy'), ('mame', '0.285')");
+    drawLib();
+  } catch (e) { DB = null; log("보관함을 못 열었어요: " + (e && e.message || e)); }
+}
+const expand = body => { const a = []; for (const line of body.split("\n")) { const m = line.match(/^(\S+)\s+(\d+)/); if (m) for (let i = 0; i < +m[2]; i++) a.push(m[1]); } return a; };
+function drawLib() {
+  if (!DB) return;
+  const recs = dbq("SELECT r.id, r.name, r.memo, r.created, r.frames, r.start, r.parent, r.branch_frame, p.name pname FROM records r LEFT JOIN records p ON p.id = r.parent ORDER BY r.id DESC");
+  $("recList").innerHTML = recs.length ? "<tr><th>#</th><th>이름</th><th>프레임</th><th>갈래</th><th>만든 때</th><th></th></tr>" + recs.map(r =>
+    `<tr title="${esc(r.memo || "")}"><td class="n">${r.id}</td><td>${esc(r.name)}${r.start !== "power-on" ? " (슬롯부터)" : ""}</td><td class="n">${r.frames}</td>` +
+    `<td>${r.parent ? `#${r.parent}의 ${r.branch_frame}프레임부터` : "-"}</td><td>${r.created.slice(5, 16).replace("T", " ")}</td>` +
+    `<td><button data-re="${r.id}">편집</button> <button data-rp="${r.id}">재생</button> <button data-rd="${r.id}">내려받기</button> <button data-rx="${r.id}">지우기</button></td></tr>`).join("") : "<tr><td class=\"cap\">아직 보관한 기록이 없어요</td></tr>";
+  const slots = dbq("SELECT id, name, created, frame, record, length(data) n FROM slots ORDER BY id DESC");
+  $("slotList").innerHTML = slots.map(r => `<tr><td class="n">${r.id}</td><td>${esc(r.name)}</td><td class="n">${r.frame ?? "?"}프레임</td><td>${r.created.slice(5, 16).replace("T", " ")}</td>` +
+    `<td><button data-s1="${r.id}">슬롯 1에</button> <button data-s2="${r.id}">슬롯 2에</button> <button data-sx="${r.id}">지우기</button></td></tr>`).join("");
+  $("libNote").textContent = `기록 ${recs.length}개 · 슬롯 ${slots.length}개` + (PLAYID ? ` · 지금 #${PLAYID}에서 이어 하는 중` : "");
+  window.__LIB = { records: recs.length, slots: slots.length };
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+$("recKeep").onclick = async () => {
+  if (!DB) return;
+  const r = await getRecord(); if (!r) return log("기록을 못 읽었어요");
+  let parent = null, branch = null;
+  if (PLAYID) {                                     // made from a kept record: where does it leave it?
+    const p = dbq("SELECT inputs FROM records WHERE id=?", [+PLAYID])[0];
+    if (p) { const a = expand(p.inputs), b = expand(r.body); let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; parent = +PLAYID; branch = i; }
+  }
+  const name = $("recName").value.trim() || `기록 ${new Date().toLocaleString("ko-KR")}`;
+  DB.run("INSERT INTO records (name, memo, created, frames, start, parent, branch_frame, inputs) VALUES (?,?,?,?,?,?,?,?)",
+    [name, $("recMemo").value.trim(), new Date().toISOString(), r.frames, r.start, parent, branch, r.body]);
+  await persist(); drawLib(); $("recName").value = ""; $("recMemo").value = ""; log(`보관함에 "${name}" (${r.frames}프레임)`);
+};
+const lastSaveFrame = {};
+document.querySelectorAll("#tas [data-save]").forEach(bt => bt.addEventListener("click", () => { lastSaveFrame[bt.dataset.save] = (window.__TAS || {}).frame; }));
+document.querySelectorAll("#lib [data-keep]").forEach(bt => bt.onclick = async () => {
+  const n = bt.dataset.keep; let data;
+  try { data = FS.readFile(`/sta/wboy/tas_${n}.sta`); } catch (e) { return log(`슬롯 ${n}이 비어 있어요`); }
+  DB.run("INSERT INTO slots (name, created, frame, data) VALUES (?,?,?,?)", [`슬롯 ${n}`, new Date().toISOString(), lastSaveFrame[n] ?? null, data]);
+  await persist(); drawLib(); log(`슬롯 ${n} 보관`);
+});
+document.addEventListener("click", async e => {
+  const t = e.target; if (!DB || !t.dataset) return;
+  const d = t.dataset;
+  if (d.re) { const r = dbq("SELECT inputs FROM records WHERE id=?", [+d.re])[0]; edOpen(expand(r.inputs), +d.re, null); $("editor").scrollIntoView({ behavior: "smooth" }); }
+  else if (d.rp) { const r = dbq("SELECT inputs, start FROM records WHERE id=?", [+d.rp])[0]; if (r.start !== "power-on" && !confirm("슬롯에서 시작한 기록이라 전원부터 재생하면 어긋나요. 그래도 할까요?")) return; playText(r.inputs, d.rp); }
+  else if (d.rd) { const r = dbq("SELECT name, frames, start, inputs FROM records WHERE id=?", [+d.rd])[0]; save(`# wonderboy-tas wboy mame-0.285 start=${r.start} frames=${r.frames}\n` + r.inputs, `wboy-rec${d.rd}-${r.frames}f.tas`); }
+  else if (d.rx) { if (!confirm(`기록 #${d.rx}을 지울까요?`)) return; DB.run("UPDATE records SET parent=NULL WHERE parent=?", [+d.rx]); DB.run("DELETE FROM records WHERE id=?", [+d.rx]); await persist(); drawLib(); }
+  else if (d.s1 || d.s2) {
+    const n = d.s1 ? 1 : 2, id = +(d.s1 || d.s2), r = dbq("SELECT data FROM slots WHERE id=?", [id])[0];
+    for (const dir of ["/sta", "/sta/wboy"]) { try { FS.mkdir(dir); } catch (err) {} }
+    FS.writeFile(`/sta/wboy/tas_${n}.sta`, r.data); tas("upload", String(n)); log(`보관 슬롯 #${id}을 슬롯 ${n}에 넣고 불러오기`);
+  }
+  else if (d.sx) { if (!confirm(`보관 슬롯 #${d.sx}을 지울까요?`)) return; DB.run("DELETE FROM slots WHERE id=?", [+d.sx]); await persist(); drawLib(); }
+});
+$("dbDown").onclick = () => save(DB.export(), `wboy-tas-${new Date().toISOString().slice(0, 10)}.db`);
+$("dbUp").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (!confirm("올린 .db로 지금 보관함을 바꿀까요? (지금 보관함은 먼저 내려받아 두세요)")) return;
+  try { const nd = new SQL.Database(new Uint8Array(await f.arrayBuffer())); nd.run(SCHEMA); DB = nd; await persist(); drawLib(); log(`${f.name} 불러옴`); }
+  catch (err) { log(".db를 못 열었어요: " + err.message); }
+  e.target.value = "";
+};
+openLib();
+
+// ---- tabs and shortcuts (UI tidy-up 2026-11-06)
+function showTab(id) {
+  for (const b of document.querySelectorAll("#tabs [data-tab]")) { const on = b.dataset.tab === id; b.setAttribute("aria-pressed", on); $(b.dataset.tab).hidden = !on; }
+  if (id === "lib" && !DB) $("lib").hidden = true;
+}
+document.querySelectorAll("#tabs [data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+// Space works always (it is not a game key); the others only while paused, so playing by hand is never disturbed
+window.addEventListener("keydown", e => {
+  if (!started || $("tas").hidden || e.repeat) return;
+  const t = e.target; if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+  const T = window.__TAS || {}, paused = T.state === "paused";
+  let hit = true;
+  if (e.code === "Space") tas(paused ? "run" : "pause");
+  else if (!paused) hit = false;
+  else if (e.key === "." || e.key === ">") tas("step", e.shiftKey ? "10" : "1", tasKeys());
+  else if (e.key === "/" || e.key === "?") tas("step", "60", tasKeys());
+  else if (e.key === "," || e.key === "<") tas("back");
+  else if (e.code === "KeyK") tas("tap", "K");
+  else if (e.code === "KeyJ") tas("tap", "J");
+  else if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const cb = document.querySelector(`#tas input[data-k="${e.key === "ArrowLeft" ? "L" : "R"}"]`); cb.checked = !cb.checked; tas("hold", tasKeys()); }
+  else hit = false;
+  if (hit) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+// ---- 입력 편집기 (2026-11-06, user: "키 내용을 보여주고 편집하는 기능은 없어?" -> "좋아 진행")
+// E[i] = keys of frame i+1. Piano roll: a column per frame, a row per input. Replay: from the latest slot of this session
+// whose record is the same up to it (Lua "playfrom"), else from power-on (page reload).
+const ROWS = [["L", "←"], ["R", "→"], ["J", "도끼"], ["K", "점프"], ["C", "동전"], ["S", "시작"]];
+const ED = { E: [], id: null, zoom: 6, first: null, cursor: 0, orig: [] };
+const rle = E => { const out = []; let cur = null, n = 0; for (const k of E) { if (k === cur) n++; else { if (cur !== null) out.push(`${cur} ${n}`); cur = k; n = 1; } } if (cur !== null) out.push(`${cur} ${n}`); return out.join("\n") + "\n"; };
+const norm = k => { const s = ROWS.map(([c]) => c).filter(c => k.includes(c)).join(""); return s || "-"; };
+function edOpen(E, id, first) {
+  ED.E = E.slice(); ED.orig = E.slice(); ED.id = id; ED.first = first; ED.cursor = Math.max(0, E.length - 1);
+  const cv = $("rollCv"), vis = Math.floor(cv.clientWidth / ED.zoom);
+  $("rollPos").max = Math.max(0, E.length - vis); $("rollPos").value = Math.max(0, (first ?? E.length) - Math.floor(vis / 2));
+  $("edTa").value = rle(ED.E); edDraw(); window.__ED = ED;
+}
+function edInfo() {
+  $("edInfo").textContent = `${ED.E.length}프레임` + (ED.id ? ` · 보관함 #${ED.id}` : " · 지금 기록") + (ED.first != null ? ` · ${ED.first + 1}프레임부터 고침` : "") + ` · 커서 ${ED.cursor + 1}프레임`;
+}
+function edDraw() {
+  const cv = $("rollCv"), w = cv.clientWidth, h = 130, dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const z = ED.zoom, x0 = 46, rh = 18, y0 = 18, start = +$("rollPos").value, vis = Math.floor((w - x0) / z);
+  g.fillStyle = "#0f1512"; g.fillRect(0, 0, w, h);
+  g.font = "11px system-ui"; g.textBaseline = "middle";
+  ROWS.forEach(([c, name], r) => { g.fillStyle = "#8fa198"; g.fillText(name, 4, y0 + r * rh + rh / 2); });
+  for (let i = 0; i < vis; i++) {
+    const f = start + i; if (f >= ED.E.length) break;
+    const x = x0 + i * z, k = ED.E[f];
+    if (f % 60 === 0) { g.fillStyle = "#26332c"; g.fillRect(x, y0, 1, rh * 6); g.fillStyle = "#8fa198"; g.fillText(String(f + 1), x + 2, 8); }
+    ROWS.forEach(([c], r) => { if (k.includes(c)) { g.fillStyle = r < 2 ? "#6fb0ff" : r < 4 ? "#39e07f" : "#ffd84a"; g.fillRect(x, y0 + r * rh + 2, Math.max(1, z - (z > 3 ? 1 : 0)), rh - 4); } });
+    if (ED.orig[f] !== undefined && ED.orig[f] !== k) { g.fillStyle = "rgba(255,107,127,.35)"; g.fillRect(x, y0 + rh * 6 + 2, Math.max(1, z), 4); }
+  }
+  const mark = (f, col) => { if (f == null || f < start || f >= start + vis) return; g.fillStyle = col; g.fillRect(x0 + (f - start) * z, y0 - 4, 2, rh * 6 + 12); };
+  mark(ED.first, "#ff6b7f"); mark(ED.cursor, "#ffd84a");
+  const T = window.__TAS; if (T && T.frame) mark(T.frame - 1 - (T.base || 0), "#ffffff");
+  edInfo();
+}
+function cellAt(e) {
+  const cv = $("rollCv"), rect = cv.getBoundingClientRect(), x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const f = +$("rollPos").value + Math.floor((x - 46) / ED.zoom), r = Math.floor((y - 18) / 18);
+  return x < 46 || r < 0 || r > 5 || f < 0 || f >= ED.E.length ? null : { f, r };
+}
+let paint = null;
+function setCell(f, r, on) {
+  const c = ROWS[r][0], k = ED.E[f], has = k.includes(c);
+  if (has === on) return;
+  ED.E[f] = norm(on ? k.replace("-", "") + c : k.replace(c, ""));
+  ED.first = ED.first == null ? f : Math.min(ED.first, f);
+}
+$("rollCv").addEventListener("pointerdown", e => { const c = cellAt(e); if (!c) return; ED.cursor = c.f; paint = !ED.E[c.f].includes(ROWS[c.r][0]); setCell(c.f, c.r, paint); $("rollCv").setPointerCapture(e.pointerId); edDraw(); });
+$("rollCv").addEventListener("pointermove", e => { if (paint === null) return; const c = cellAt(e); if (!c) return; ED.cursor = c.f; setCell(c.f, c.r, paint); edDraw(); });
+$("rollCv").addEventListener("pointerup", () => { if (paint !== null) { paint = null; $("edTa").value = rle(ED.E); } });
+$("rollCv").addEventListener("wheel", e => { e.preventDefault(); $("rollPos").value = +$("rollPos").value + Math.sign(e.deltaY || e.deltaX) * 30; edDraw(); }, { passive: false });
+$("rollPos").oninput = edDraw;
+const setZoom = z => { ED.zoom = Math.max(1, Math.min(16, z)); const vis = Math.floor(($("rollCv").clientWidth - 46) / ED.zoom); $("rollPos").max = Math.max(0, ED.E.length - vis); edDraw(); };
+$("edZoomIn").onclick = () => setZoom(ED.zoom * 2);
+$("edZoomOut").onclick = () => setZoom(ED.zoom / 2);
+$("edAdd").onclick = () => { for (let i = 0; i < 60; i++) ED.E.push("-"); ED.first = ED.first == null ? ED.E.length - 60 : ED.first; setZoom(ED.zoom); $("edTa").value = rle(ED.E); };
+$("edCut").onclick = () => { if (!confirm(`${ED.cursor + 1}프레임 뒤를 지울까요?`)) return; ED.E.length = ED.cursor + 1; ED.first = ED.first == null ? ED.cursor + 1 : Math.min(ED.first, ED.cursor + 1); setZoom(ED.zoom); $("edTa").value = rle(ED.E); };
+$("edText").onclick = () => { $("edTextBox").hidden = !$("edTextBox").hidden; $("edTa").value = rle(ED.E); };
+$("edTaApply").onclick = () => {
+  const E = expand($("edTa").value).map(norm);
+  let i = 0; while (i < E.length && i < ED.E.length && E[i] === ED.E[i]) i++;
+  if (i < Math.max(E.length, ED.E.length)) ED.first = ED.first == null ? i : Math.min(ED.first, i);
+  ED.E = E; setZoom(ED.zoom); log(`글자 내용 적용 (${E.length}프레임)`);
+};
+$("edCur").onclick = async () => {
+  const r = await getRecord(); if (!r) return log("기록을 못 읽었어요");
+  if (r.start !== "power-on") log("주의: 슬롯 파일에서 시작한 기록이라 전원부터 재생하면 어긋나요");
+  edOpen(expand(r.body), PLAYID ? +PLAYID : null, null);
+};
+$("edDown").onclick = () => save(`# wonderboy-tas wboy mame-0.285 start=power-on frames=${ED.E.length}\n` + rle(ED.E), `wboy-edit-${ED.E.length}f.tas`);
+$("edKeep").onclick = async () => {
+  if (!DB) return;
+  const name = $("edName").value.trim() || `편집 ${new Date().toLocaleString("ko-KR")}`;
+  DB.run("INSERT INTO records (name, memo, created, frames, start, parent, branch_frame, inputs) VALUES (?,?,?,?,?,?,?,?)",
+    [name, "입력 편집기", new Date().toISOString(), ED.E.length, "power-on", ED.id, ED.id ? (ED.first ?? ED.E.length) : null, rle(ED.E)]);
+  await persist(); drawLib(); log(`보관함에 "${name}" (${ED.E.length}프레임)`);
+};
+$("edPlay").onclick = async () => {
+  if (!ED.E.length) return;
+  const text = rle(ED.E);
+  FS.writeFile("/tas/play.txt", text);
+  if (await tasDone(tas("playfrom")) === "playfrom") { log("슬롯에서부터 재생"); return; }
+  log("맞는 슬롯이 없어 전원부터 재생");
+  try { sessionStorage.setItem("wboy-edit", JSON.stringify({ frames: ED.E, id: ED.id, first: ED.first })); } catch (e) {}
+  playText(text, ED.id);
+};
+setInterval(() => { if (!$("editor").hidden && ED.E.length) edDraw(); }, 250);
+// arrow keys, Ctrl and Alt go to the game, not the page / browser menus
+window.addEventListener("keydown", e => { if (started && e.key.startsWith("Arrow")) e.preventDefault(); }, { passive: false });
+$("canvas").addEventListener("pointerdown", () => $("canvas").focus());
+$("restart").onclick = () => location.reload();   // a fresh power-on: a soft reset would not be in the input record
+$("forgetRom").onclick = async () => { await romDB("del"); alert("저장된 롬을 지웠어요. 페이지를 새로 불러올게요."); location.reload(); };
+
+(async () => {
+  const cached = await romDB("get"), set = cached && whichSet(cached);
+  if (set) startMAME(cached, set); else armDrop();
+})();
+</script>
